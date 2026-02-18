@@ -1,18 +1,45 @@
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import logo from "./assets/logo-hearthswipe.png";
+import buttonInfo from "./assets/button-info.png";
+import buttonNo from "./assets/button-no.png";
+import buttonReverse from "./assets/button-reverse.png";
+import buttonSuper from "./assets/button-super.png";
+import buttonYes from "./assets/button-yes.png";
 
 type Phase = "intro" | "loading" | "ready" | "error";
+
+type CardRarity = "NONE" | "FREE" | "COMMON" | "RARE" | "EPIC" | "LEGENDARY";
+type SwipeAction = "yes" | "no" | "super";
+
+type RunCounters = {
+    yes: number;
+    no: number;
+    super: number;
+};
 
 type HearthstoneCard = {
     id: string;
     name: string;
     artist?: string;
     flavor?: string;
+    rarity: CardRarity;
+};
+
+type RawHearthstoneCard = Partial<Omit<HearthstoneCard, "rarity">> & {
+    rarity?: string;
 };
 
 const CARDS_URL = "https://api.hearthstonejson.com/v1/latest/enUS/cards.collectible.json";
 const RUN_SIZE = 30;
 const MIN_LOADING_MS = 700;
+
+function createEmptyCounters(): RunCounters {
+    return {
+        yes: 0,
+        no: 0,
+        super: 0,
+    };
+}
 
 function plainFlavorText(flavor?: string): string {
     if (!flavor) {
@@ -26,7 +53,25 @@ function plainFlavorText(flavor?: string): string {
         .trim();
 }
 
-function cleanCard(card: Partial<HearthstoneCard>): HearthstoneCard | null {
+function normalizeRarity(rarity?: string): CardRarity {
+    const value = typeof rarity === "string" ? rarity.toUpperCase() : "";
+    switch (value) {
+        case "FREE":
+        case "COMMON":
+        case "RARE":
+        case "EPIC":
+        case "LEGENDARY":
+            return value;
+        default:
+            return "NONE";
+    }
+}
+
+function rarityClassName(rarity: CardRarity): string {
+    return `rarity-${rarity.toLowerCase()}`;
+}
+
+function cleanCard(card: RawHearthstoneCard): HearthstoneCard | null {
     if (!card.id || !card.name) {
         return null;
     }
@@ -44,6 +89,7 @@ function cleanCard(card: Partial<HearthstoneCard>): HearthstoneCard | null {
         name: card.name,
         artist,
         flavor,
+        rarity: normalizeRarity(card.rarity),
     };
 }
 
@@ -62,7 +108,7 @@ async function fetchCards(): Promise<HearthstoneCard[]> {
         throw new Error(`Failed to fetch cards (${response.status})`);
     }
 
-    const raw = (await response.json()) as Array<Partial<HearthstoneCard>>;
+    const raw = (await response.json()) as RawHearthstoneCard[];
     const cards = raw.map(cleanCard).filter((card): card is HearthstoneCard => Boolean(card));
     return cards;
 }
@@ -132,6 +178,7 @@ export default function App() {
     const [index, setIndex] = useState(0);
     const [error, setError] = useState<string>("");
     const [loadedCardIds, setLoadedCardIds] = useState<Record<string, true>>({});
+    const [runCounters, setRunCounters] = useState<RunCounters>(createEmptyCounters);
 
     const currentCard = useMemo(() => deck[index], [deck, index]);
 
@@ -185,6 +232,7 @@ export default function App() {
             }
             setDeck(runDeck);
             setLoadedCardIds({});
+            setRunCounters(createEmptyCounters());
             runDeck.slice(0, 8).forEach((card) => preloadCard(card.id));
             setIndex(0);
             setPhase("ready");
@@ -195,8 +243,16 @@ export default function App() {
         }
     };
 
-    const nextCard = () => {
+    const advanceCard = () => {
         setIndex((prev) => Math.min(prev + 1, deck.length));
+    };
+
+    const applyAction = (action: SwipeAction) => {
+        setRunCounters((prev) => ({
+            ...prev,
+            [action]: prev[action] + 1,
+        }));
+        advanceCard();
     };
 
     const reset = () => {
@@ -205,6 +261,7 @@ export default function App() {
         setIndex(0);
         setError("");
         setLoadedCardIds({});
+        setRunCounters(createEmptyCounters());
     };
 
     const isDone = phase === "ready" && index >= deck.length;
@@ -248,7 +305,9 @@ export default function App() {
                                 <p className="run-count reveal reveal-1">
                                     Card {index + 1} / {deck.length}
                                 </p>
-                                <div className={`card-art-slot reveal reveal-2 ${loadedCardIds[currentCard.id] ? "" : "is-loading"}`}>
+                                <div
+                                    className={`card-art-slot reveal reveal-2 ${rarityClassName(currentCard.rarity)} ${loadedCardIds[currentCard.id] ? "" : "is-loading"}`}
+                                >
                                     <img
                                         className={`card-image ${loadedCardIds[currentCard.id] ? "is-ready" : "is-pending"}`}
                                         src={cardImageUrl(currentCard.id)}
@@ -261,9 +320,33 @@ export default function App() {
                                     <p className="card-artist">Artist: {currentCard.artist ?? "Unknown"}</p>
                                     <p className="card-flavor">{renderFlavorText(currentCard.flavor)}</p>
                                 </section>
-                                <button className="btn reveal reveal-4" onClick={nextCard} type="button">
-                                    Next Card
-                                </button>
+                                <section className="card-actions reveal reveal-4" aria-label="Card actions">
+                                    <button
+                                        className="action-btn action-btn--minor"
+                                        type="button"
+                                        aria-label="Reverse (coming soon)"
+                                        title="Reverse (coming soon)"
+                                    >
+                                        <img src={buttonReverse} alt="" />
+                                    </button>
+                                    <button className="action-btn action-btn--major" onClick={() => applyAction("no")} type="button" aria-label="Nope">
+                                        <img src={buttonNo} alt="" />
+                                    </button>
+                                    <button className="action-btn action-btn--minor" onClick={() => applyAction("super")} type="button" aria-label="Super Like">
+                                        <img src={buttonSuper} alt="" />
+                                    </button>
+                                    <button className="action-btn action-btn--major" onClick={() => applyAction("yes")} type="button" aria-label="Like">
+                                        <img src={buttonYes} alt="" />
+                                    </button>
+                                    <button className="action-btn action-btn--minor" type="button" aria-label="Info (coming soon)" title="Info (coming soon)">
+                                        <img src={buttonInfo} alt="" />
+                                    </button>
+                                </section>
+                                <p className="run-counters reveal reveal-4">
+                                    <span className="run-counter run-counter--yes">Yes: {runCounters.yes}</span>
+                                    <span className="run-counter run-counter--no">No: {runCounters.no}</span>
+                                    <span className="run-counter run-counter--super">Super: {runCounters.super}</span>
+                                </p>
                             </div>
                         </section>
                     )}
@@ -272,6 +355,9 @@ export default function App() {
                         <section className="panel panel--enter">
                             <h1>Run complete</h1>
                             <p>You went through {deck.length} cards.</p>
+                            <p>
+                                Yes: {runCounters.yes} | No: {runCounters.no} | Super: {runCounters.super}
+                            </p>
                             <button className="btn" onClick={reset} type="button">
                                 Start New Run
                             </button>

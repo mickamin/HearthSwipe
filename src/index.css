@@ -243,7 +243,7 @@ body {
     justify-items: center;
     align-content: start;
     height: 100%;
-    grid-template-rows: auto auto auto minmax(0, 0.85fr) auto;
+    grid-template-rows: auto auto auto auto auto;
 }
 
 .card-content .run-count {
@@ -268,7 +268,8 @@ body {
     max-width: 100%;
     margin: 0.25rem 0 0.6rem;
     object-fit: contain;
-    transition: opacity 160ms ease-out, transform 180ms ease-out;
+    filter: none;
+    transition: opacity 160ms ease-out, transform 180ms ease-out, filter 180ms ease-out;
 }
 
 .card-image.is-pending {
@@ -287,6 +288,46 @@ body {
     display: grid;
     place-items: center;
     position: relative;
+    --rarity-glow-rgb: 194, 202, 214;
+    --rarity-edge-rgb: 218, 224, 234;
+}
+
+.card-art-slot.rarity-none {
+    --rarity-glow-rgb: 194, 202, 214;
+    --rarity-edge-rgb: 218, 224, 234;
+}
+
+.card-art-slot.rarity-free {
+    --rarity-glow-rgb: 208, 220, 236;
+    --rarity-edge-rgb: 234, 242, 250;
+}
+
+.card-art-slot.rarity-common {
+    --rarity-glow-rgb: 239, 246, 255;
+    --rarity-edge-rgb: 255, 255, 255;
+}
+
+.card-art-slot.rarity-rare {
+    --rarity-glow-rgb: 49, 154, 255;
+    --rarity-edge-rgb: 104, 196, 255;
+}
+
+.card-art-slot.rarity-epic {
+    --rarity-glow-rgb: 193, 95, 255;
+    --rarity-edge-rgb: 228, 165, 255;
+}
+
+.card-art-slot.rarity-legendary {
+    --rarity-glow-rgb: 255, 124, 36;
+    --rarity-edge-rgb: 255, 174, 88;
+}
+
+.card-art-slot:hover .card-image.is-ready {
+    transform: scale(1.012);
+    filter:
+        drop-shadow(0 0 4px rgba(var(--rarity-edge-rgb), 0.86))
+        drop-shadow(0 0 10px rgba(var(--rarity-glow-rgb), 0.54))
+        drop-shadow(0 0 16px rgba(var(--rarity-glow-rgb), 0.32));
 }
 
 .card-art-slot.is-loading::before {
@@ -303,7 +344,7 @@ body {
     display: grid;
     justify-items: center;
     gap: 0.78rem;
-    margin: -0.8rem 0.3rem;
+    margin: -1.3rem 0.3rem;
     padding-top: 0.18rem;
     max-width: 350px;
     text-align: center;
@@ -364,9 +405,90 @@ body {
     color: #ffe7a4;
 }
 
-.card-content .btn {
-    margin-top: 4rem;
-    align-self: end;
+.card-actions {
+    width: min(100%, 360px);
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    justify-items: center;
+    align-items: center;
+    gap: 0.24rem;
+    margin-top: 1.8rem;
+}
+
+.action-btn {
+    -webkit-appearance: none;
+    appearance: none;
+    width: clamp(50px, 8.2vw, 64px);
+    aspect-ratio: 1 / 1;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    padding: 0;
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+    transition: transform 120ms ease;
+}
+
+.action-btn--major {
+    width: clamp(60px, 9.9vw, 77px);
+}
+
+.action-btn--minor {
+    width: clamp(40px, 6.6vw, 51px);
+}
+
+.action-btn img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
+    pointer-events: none;
+    transition: filter 130ms ease;
+}
+
+.action-btn:hover img {
+    filter:
+        brightness(1.08)
+        drop-shadow(0 0 3px rgba(48, 190, 255, 0.95))
+        drop-shadow(0 0 8px rgba(48, 190, 255, 0.8))
+        drop-shadow(0 0 14px rgba(48, 190, 255, 0.55));
+}
+
+.action-btn:active {
+    transform: scale(0.95);
+}
+
+.run-counters {
+    margin: 0.25rem 0 0;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.75rem;
+    color: #fff6f0;
+    font-size: 0.92rem;
+    line-height: 1.1;
+    text-shadow:
+        2px 0 0 #000,
+        1.414px 1.414px 0 #000,
+        0 2px 0 #000,
+        -1.414px 1.414px 0 #000,
+        -2px 0 0 #000,
+        -1.414px -1.414px 0 #000,
+        0 -2px 0 #000,
+        1.414px -1.414px 0 #000;
+}
+
+.run-counter--yes {
+    color: #c5ffc0;
+}
+
+.run-counter--no {
+    color: #ffd2c7;
+}
+
+.run-counter--super {
+    color: #c7f3ff;
 }
 
 @keyframes panel-enter {
@@ -462,5 +584,28 @@ body {
     .card-image {
         width: 220px;
         height: 320px;
+    }
+
+    .card-actions {
+        width: min(100%, 305px);
+        gap: 0.2rem;
+        margin-top: 0.52rem;
+    }
+
+    .action-btn {
+        width: clamp(44px, 13vw, 56px);
+    }
+
+    .action-btn--major {
+        width: clamp(52px, 15.6vw, 66px);
+    }
+
+    .action-btn--minor {
+        width: clamp(35px, 10.4vw, 45px);
+    }
+
+    .run-counters {
+        gap: 0.56rem;
+        font-size: 0.85rem;
     }
 }
