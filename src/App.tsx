@@ -14,15 +14,36 @@ const CARDS_URL = "https://api.hearthstonejson.com/v1/latest/enUS/cards.collecti
 const RUN_SIZE = 30;
 const MIN_LOADING_MS = 700;
 
+function plainFlavorText(flavor?: string): string {
+    if (!flavor) {
+        return "";
+    }
+    return flavor
+        .replace(/<br\s*\/?>/gi, " ")
+        .replace(/<[^>]+>/g, "")
+        .replace(/&nbsp;|&#160;/gi, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+}
+
 function cleanCard(card: Partial<HearthstoneCard>): HearthstoneCard | null {
     if (!card.id || !card.name) {
         return null;
     }
+
+    const artist = card.artist?.trim();
+    const flavor = typeof card.flavor === "string" ? card.flavor : "";
+
+    // Keep only cards that have both attribution and meaningful flavor text.
+    if (!artist || !plainFlavorText(flavor)) {
+        return null;
+    }
+
     return {
         id: card.id,
         name: card.name,
-        artist: card.artist,
-        flavor: card.flavor,
+        artist,
+        flavor,
     };
 }
 
@@ -55,8 +76,9 @@ function renderFlavorText(flavor?: string): ReactNode {
         return "No flavor text.";
     }
 
-    const tokens = flavor.split(/(<\/?i>)/gi);
+    const tokens = flavor.split(/(<\/?(?:i|b)>|<br\s*\/?>)/gi);
     let italic = false;
+    let bold = false;
     const parts: ReactNode[] = [];
 
     tokens.forEach((token, index) => {
@@ -71,10 +93,37 @@ function renderFlavorText(flavor?: string): ReactNode {
             italic = false;
             return;
         }
-        parts.push(italic ? <em key={`flavor-${index}`}>{token}</em> : <span key={`flavor-${index}`}>{token}</span>);
+        if (/^<b>$/i.test(token)) {
+            bold = true;
+            return;
+        }
+        if (/^<\/b>$/i.test(token)) {
+            bold = false;
+            return;
+        }
+        if (/^<br\s*\/?>$/i.test(token)) {
+            parts.push(<br key={`flavor-br-${index}`} />);
+            return;
+        }
+
+        const text = token.replace(/<[^>]+>/g, "");
+        if (!text) {
+            return;
+        }
+
+        let content: ReactNode = text;
+        if (italic) {
+            content = <em>{content}</em>;
+        }
+        if (bold) {
+            content = <strong>{content}</strong>;
+        }
+
+        parts.push(<span key={`flavor-${index}`}>{content}</span>);
     });
 
-    return parts.length > 0 ? parts : flavor.replace(/<[^>]+>/g, "");
+    const fallback = flavor.replace(/<[^>]+>/g, "").trim();
+    return parts.length > 0 ? parts : fallback || "No flavor text.";
 }
 
 export default function App() {
