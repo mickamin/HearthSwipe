@@ -245,8 +245,33 @@ export default function App() {
     const [error, setError] = useState<string>("");
     const [loadedCardIds, setLoadedCardIds] = useState<Record<string, true>>({});
     const [runCounters, setRunCounters] = useState<RunCounters>(createEmptyCounters);
+    const [actionsByIndex, setActionsByIndex] = useState<Record<number, SwipeAction>>({});
+    const [reversedCardIndexes, setReversedCardIndexes] = useState<Record<number, true>>({});
+    const [reverseUses, setReverseUses] = useState(0);
+    const [reverseCooldownUntilIndex, setReverseCooldownUntilIndex] = useState(0);
 
     const currentCard = useMemo(() => deck[index], [deck, index]);
+    const previousCardIndex = index - 1;
+    const reversesLeft = Math.max(0, RUN_REVERSE_LIMIT - reverseUses);
+    const superLikesLeft = Math.max(0, RUN_SUPER_LIKE_LIMIT - runCounters.super);
+    const canUseSuperLike = superLikesLeft > 0;
+    const reverseInCooldown = index < reverseCooldownUntilIndex;
+    const canReversePreviousCard =
+        !reverseInCooldown &&
+        previousCardIndex >= 0 &&
+        reversesLeft > 0 &&
+        !reversedCardIndexes[previousCardIndex] &&
+        Boolean(actionsByIndex[previousCardIndex]);
+    const reverseActionTitle = canReversePreviousCard
+        ? `Reverse last card (${reversesLeft} left)`
+        : reversesLeft === 0
+          ? "No reverses left"
+          : reverseInCooldown
+            ? "Reverse recharges after moving forward"
+          : previousCardIndex < 0
+            ? "Swipe at least one card first"
+            : "This card was already reversed";
+    const superLikeTitle = canUseSuperLike ? `Super Like (${superLikesLeft} left)` : "No super likes left";
 
     const markCardLoaded = (cardId: string) => {
         setLoadedCardIds((prev) => {
@@ -299,6 +324,10 @@ export default function App() {
             setDeck(runDeck);
             setLoadedCardIds({});
             setRunCounters(createEmptyCounters());
+            setActionsByIndex({});
+            setReversedCardIndexes({});
+            setReverseUses(0);
+            setReverseCooldownUntilIndex(0);
             runDeck.slice(0, 8).forEach((card) => preloadCard(card.id));
             setIndex(0);
             setPhase("ready");
@@ -314,11 +343,52 @@ export default function App() {
     };
 
     const applyAction = (action: SwipeAction) => {
+        if (phase !== "ready" || !currentCard) {
+            return;
+        }
+        if (action === "super" && !canUseSuperLike) {
+            return;
+        }
+
+        const activeIndex = index;
         setRunCounters((prev) => ({
             ...prev,
             [action]: prev[action] + 1,
         }));
+        setActionsByIndex((prev) => ({
+            ...prev,
+            [activeIndex]: action,
+        }));
         advanceCard();
+    };
+
+    const reverseLastAction = () => {
+        if (!canReversePreviousCard) {
+            return;
+        }
+
+        const targetIndex = previousCardIndex;
+        const previousAction = actionsByIndex[targetIndex];
+        if (!previousAction) {
+            return;
+        }
+
+        setRunCounters((prev) => ({
+            ...prev,
+            [previousAction]: Math.max(prev[previousAction] - 1, 0),
+        }));
+        setActionsByIndex((prev) => {
+            const next = { ...prev };
+            delete next[targetIndex];
+            return next;
+        });
+        setReversedCardIndexes((prev) => ({
+            ...prev,
+            [targetIndex]: true,
+        }));
+        setReverseUses((prev) => prev + 1);
+        setReverseCooldownUntilIndex(index + 1);
+        setIndex(targetIndex);
     };
 
     const reset = () => {
@@ -328,6 +398,10 @@ export default function App() {
         setError("");
         setLoadedCardIds({});
         setRunCounters(createEmptyCounters());
+        setActionsByIndex({});
+        setReversedCardIndexes({});
+        setReverseUses(0);
+        setReverseCooldownUntilIndex(0);
     };
 
     const isDone = phase === "ready" && index >= deck.length;
@@ -341,9 +415,35 @@ export default function App() {
                     {phase === "intro" && (
                         <section className="panel panel--enter">
                             <h1>Ready to judge cards?</h1>
-                            <p>Start a 30-card run. We fetch collectible cards only.</p>
+                            <p className="intro-subtitle">30 collectible cards. Fast calls. No take-backs abuse.</p>
+                            <ul className="intro-rules" aria-label="Run rules">
+                                <li>
+                                    <span className="intro-rule-line">
+                                        <img className="intro-rule-icon intro-rule-icon--major" src={buttonYes} alt="" aria-hidden="true" />
+                                        <strong>Like</strong>: keep the card.
+                                    </span>
+                                </li>
+                                <li>
+                                    <span className="intro-rule-line">
+                                        <img className="intro-rule-icon intro-rule-icon--major" src={buttonNo} alt="" aria-hidden="true" />
+                                        <strong>Nope</strong>: reject the card.
+                                    </span>
+                                </li>
+                                <li>
+                                    <span className="intro-rule-line">
+                                        <img className="intro-rule-icon" src={buttonSuper} alt="" aria-hidden="true" />
+                                        <strong>Super Like</strong>: max {RUN_SUPER_LIKE_LIMIT} per run.
+                                    </span>
+                                </li>
+                                <li>
+                                    <span className="intro-rule-line">
+                                        <img className="intro-rule-icon" src={buttonReverse} alt="" aria-hidden="true" />
+                                        <strong>Reverse</strong>: max {RUN_REVERSE_LIMIT} per run, latest card only.
+                                    </span>
+                                </li>
+                            </ul>
                             <button className="btn" onClick={startRun} type="button">
-                                Begin Run
+                                Start
                             </button>
                         </section>
                     )}
@@ -392,15 +492,24 @@ export default function App() {
                                     <button
                                         className="action-btn action-btn--minor"
                                         type="button"
-                                        aria-label="Reverse (coming soon)"
-                                        title="Reverse (coming soon)"
+                                        onClick={reverseLastAction}
+                                        aria-label="Reverse last choice"
+                                        title={reverseActionTitle}
+                                        disabled={!canReversePreviousCard}
                                     >
                                         <img src={buttonReverse} alt="" />
                                     </button>
                                     <button className="action-btn action-btn--major" onClick={() => applyAction("no")} type="button" aria-label="Nope">
                                         <img src={buttonNo} alt="" />
                                     </button>
-                                    <button className="action-btn action-btn--minor" onClick={() => applyAction("super")} type="button" aria-label="Super Like">
+                                    <button
+                                        className="action-btn action-btn--minor"
+                                        onClick={() => applyAction("super")}
+                                        type="button"
+                                        aria-label="Super Like"
+                                        title={superLikeTitle}
+                                        disabled={!canUseSuperLike}
+                                    >
                                         <img src={buttonSuper} alt="" />
                                     </button>
                                     <button className="action-btn action-btn--major" onClick={() => applyAction("yes")} type="button" aria-label="Like">
@@ -413,7 +522,7 @@ export default function App() {
                                         <div className="info-bubble" aria-hidden="true">
                                             <img className="info-bubble__bg" src={popupChatBubble} alt="" />
                                             <span className="info-bubble__text">
-                                                You get {RUN_REVERSE_LIMIT} reverses and {RUN_SUPER_LIKE_LIMIT} super likes for this {RUN_SIZE}-card run. Spend them wisely.
+                                                {RUN_SIZE} cards per run. {RUN_REVERSE_LIMIT} reverses total, latest card only, one reverse per card. {RUN_SUPER_LIKE_LIMIT} super likes total.
                                             </span>
                                         </div>
                                     </div>
@@ -429,6 +538,7 @@ export default function App() {
                             <p>
                                 No: {runCounters.no} | Super: {runCounters.super} | Yes: {runCounters.yes}
                             </p>
+                            <p>Reverses used: {reverseUses}</p>
                             <button className="btn" onClick={reset} type="button">
                                 Start New Run
                             </button>
