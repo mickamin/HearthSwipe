@@ -1,10 +1,11 @@
-import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import logo from "./assets/logo-hearthswipe.png";
 import buttonInfo from "./assets/button-info.png";
 import buttonNo from "./assets/button-no.png";
 import buttonReverse from "./assets/button-reverse.png";
 import buttonSuper from "./assets/button-super.png";
 import buttonYes from "./assets/button-yes.png";
+import popupChatBubble from "./assets/popup-chat-bubble.png";
 
 type Phase = "intro" | "loading" | "ready" | "error";
 
@@ -32,6 +33,11 @@ type RawHearthstoneCard = Partial<Omit<HearthstoneCard, "rarity">> & {
 const CARDS_URL = "https://api.hearthstonejson.com/v1/latest/enUS/cards.collectible.json";
 const RUN_SIZE = 30;
 const MIN_LOADING_MS = 700;
+const RUN_REVERSE_LIMIT = 3;
+const RUN_SUPER_LIKE_LIMIT = 2;
+const FLAVOR_FONT_MAX_PX = 14;
+const FLAVOR_FONT_MIN_PX = 9;
+const FLAVOR_FONT_STEP_PX = 0.5;
 
 function createEmptyCounters(): RunCounters {
     return {
@@ -172,6 +178,66 @@ function renderFlavorText(flavor?: string): ReactNode {
     return parts.length > 0 ? parts : fallback || "No flavor text.";
 }
 
+function FlavorTextBox({ flavor }: { flavor?: string }) {
+    const textRef = useRef<HTMLParagraphElement | null>(null);
+
+    useLayoutEffect(() => {
+        let raf = 0;
+        const text = textRef.current;
+        if (!text) {
+            return;
+        }
+
+        const fitText = () => {
+            const node = textRef.current;
+            if (!node) {
+                return;
+            }
+
+            let size = FLAVOR_FONT_MAX_PX;
+            node.style.setProperty("--flavor-font-size", `${size}px`);
+
+            while (
+                size > FLAVOR_FONT_MIN_PX &&
+                (node.scrollHeight > node.clientHeight || node.scrollWidth > node.clientWidth)
+            ) {
+                size -= FLAVOR_FONT_STEP_PX;
+                node.style.setProperty("--flavor-font-size", `${size}px`);
+            }
+        };
+
+        const scheduleFit = () => {
+            window.cancelAnimationFrame(raf);
+            raf = window.requestAnimationFrame(fitText);
+        };
+
+        scheduleFit();
+        window.addEventListener("resize", scheduleFit);
+
+        let observer: ResizeObserver | null = null;
+        if (typeof ResizeObserver !== "undefined") {
+            observer = new ResizeObserver(scheduleFit);
+            if (text.parentElement) {
+                observer.observe(text.parentElement);
+            }
+        }
+
+        return () => {
+            window.cancelAnimationFrame(raf);
+            window.removeEventListener("resize", scheduleFit);
+            observer?.disconnect();
+        };
+    }, [flavor]);
+
+    return (
+        <div className="card-flavor-box">
+            <p ref={textRef} className="card-flavor">
+                {renderFlavorText(flavor)}
+            </p>
+        </div>
+    );
+}
+
 export default function App() {
     const [phase, setPhase] = useState<Phase>("intro");
     const [deck, setDeck] = useState<HearthstoneCard[]>([]);
@@ -301,7 +367,7 @@ export default function App() {
 
                     {phase === "ready" && currentCard && (
                         <section className="panel card-panel">
-                            <div className="card-content" key={currentCard.id}>
+                            <div className="card-content">
                                 <p className="run-count reveal reveal-1">
                                     Card {index + 1} / {deck.length}
                                 </p>
@@ -318,9 +384,11 @@ export default function App() {
                                 </div>
                                 <section className="card-meta reveal reveal-3">
                                     <p className="card-artist">Artist: {currentCard.artist ?? "Unknown"}</p>
-                                    <p className="card-flavor">{renderFlavorText(currentCard.flavor)}</p>
+                                    <FlavorTextBox flavor={currentCard.flavor} />
                                 </section>
-                                <section className="card-actions reveal reveal-4" aria-label="Card actions">
+                            </div>
+                            <section className="card-footer">
+                                <section className="card-actions" aria-label="Card actions">
                                     <button
                                         className="action-btn action-btn--minor"
                                         type="button"
@@ -338,16 +406,19 @@ export default function App() {
                                     <button className="action-btn action-btn--major" onClick={() => applyAction("yes")} type="button" aria-label="Like">
                                         <img src={buttonYes} alt="" />
                                     </button>
-                                    <button className="action-btn action-btn--minor" type="button" aria-label="Info (coming soon)" title="Info (coming soon)">
-                                        <img src={buttonInfo} alt="" />
-                                    </button>
+                                    <div className="info-action action-btn--minor">
+                                        <button className="action-btn action-btn--minor" type="button" aria-label="Info">
+                                            <img src={buttonInfo} alt="" />
+                                        </button>
+                                        <div className="info-bubble" aria-hidden="true">
+                                            <img className="info-bubble__bg" src={popupChatBubble} alt="" />
+                                            <span className="info-bubble__text">
+                                                You get {RUN_REVERSE_LIMIT} reverses and {RUN_SUPER_LIKE_LIMIT} super likes for this {RUN_SIZE}-card run. Spend them wisely.
+                                            </span>
+                                        </div>
+                                    </div>
                                 </section>
-                                <p className="run-counters reveal reveal-4">
-                                    <span className="run-counter run-counter--yes">Yes: {runCounters.yes}</span>
-                                    <span className="run-counter run-counter--no">No: {runCounters.no}</span>
-                                    <span className="run-counter run-counter--super">Super: {runCounters.super}</span>
-                                </p>
-                            </div>
+                            </section>
                         </section>
                     )}
 
@@ -356,7 +427,7 @@ export default function App() {
                             <h1>Run complete</h1>
                             <p>You went through {deck.length} cards.</p>
                             <p>
-                                Yes: {runCounters.yes} | No: {runCounters.no} | Super: {runCounters.super}
+                                No: {runCounters.no} | Super: {runCounters.super} | Yes: {runCounters.yes}
                             </p>
                             <button className="btn" onClick={reset} type="button">
                                 Start New Run

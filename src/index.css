@@ -94,10 +94,11 @@ body {
 .shell-active {
     height: clamp(620px, 72vw, 680px);
     align-content: start;
+    overflow: visible;
     padding:
         clamp(1.05rem, 3vw, 1.45rem)
         clamp(1.35rem, 6.2vw, 2.35rem)
-        clamp(2.35rem, 5.8vw, 3.05rem);
+        clamp(0.8rem, 2.1vw, 1.2rem);
 }
 
 .panel {
@@ -121,12 +122,20 @@ body {
 }
 
 .shell-active .panel {
-    height: 520px;
+    height: 100%;
+    min-height: 0;
 }
 
 .loading-panel {
-    align-content: center;
+    place-content: center;
     justify-items: center;
+    text-align: center;
+    gap: 0.45rem;
+}
+
+.loading-panel h1,
+.loading-panel p {
+    margin: 0;
 }
 
 .panel--enter {
@@ -192,7 +201,7 @@ body {
     font-family: "Belwe", Georgia, serif;
     font-size: 1.06rem;
     font-weight: 700;
-    color: #fff5df;
+    color: #ffffff;
     background-image: url("./assets/button-rune.png");
     background-repeat: no-repeat;
     background-size: 100% 100%;
@@ -233,8 +242,14 @@ body {
 
 .card-panel {
     width: 100%;
-    row-gap: 0.35rem;
+    position: relative;
     height: 100%;
+    min-height: 0;
+    display: grid;
+    grid-template-rows: minmax(0, 1fr) auto;
+    align-content: stretch;
+    row-gap: 0.35rem;
+    overflow: visible;
 }
 
 .card-content {
@@ -242,15 +257,19 @@ body {
     display: grid;
     justify-items: center;
     align-content: start;
-    height: 100%;
-    grid-template-rows: auto auto auto auto auto;
+    min-height: 0;
+    height: auto;
+    padding: 0.3rem 0.35rem 0;
+    overflow: visible;
+    grid-template-rows: auto auto auto;
+    row-gap: 0.12rem;
 }
 
 .card-content .run-count {
     font-size: 1.15rem;
     line-height: 1.08;
     color: #ffffff;
-    margin-bottom: 0.42rem;
+    margin-bottom: 0.24rem;
     text-shadow:
         2px 0 0 #000,
         1.414px 1.414px 0 #000,
@@ -266,7 +285,7 @@ body {
     width: 256px;
     height: 374px;
     max-width: 100%;
-    margin: 0.25rem 0 0.6rem;
+    margin: 0.05rem 0 0.2rem;
     object-fit: contain;
     filter: none;
     transition: opacity 160ms ease-out, transform 180ms ease-out, filter 180ms ease-out;
@@ -342,11 +361,17 @@ body {
 
 .card-meta {
     display: grid;
+    grid-template-rows: auto 1fr;
+    align-content: stretch;
     justify-items: center;
-    gap: 0.78rem;
-    margin: -1.3rem 0.3rem;
-    padding-top: 0.18rem;
-    max-width: 350px;
+    gap: 0.34rem;
+    margin: 0.16rem 0.25rem 0;
+    padding-top: 0;
+    width: min(100%, 340px);
+    height: 108px;
+    max-height: none;
+    min-height: 0;
+    overflow: visible;
     text-align: center;
 }
 
@@ -355,11 +380,11 @@ body {
 }
 
 .panel .card-meta .card-artist {
-    min-height: 1.3em;
+    min-height: 1.15em;
     font-family: "Belwe", Georgia, serif;
     font-weight: 700;
     color: #ffffff;
-    font-size: 1.1rem;
+    font-size: 1.02rem;
     letter-spacing: 0.005em;
     text-transform: none;
     text-shadow:
@@ -373,23 +398,34 @@ body {
         1.414px -1.414px 0 #000;
 }
 
+.card-flavor-box {
+    width: 100%;
+    height: 78px;
+    padding: 0.36rem 0.48rem;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    overflow: hidden;
+}
+
 .panel .card-meta .card-flavor {
+    --flavor-font-size: 14px;
     font-family: "Belwe", Georgia, serif;
     font-weight: 700;
-    font-size: 0.96rem;
-    line-height: 1.18;
+    font-size: var(--flavor-font-size);
+    line-height: 1.1;
     font-style: italic;
     color: #fff4f0;
-    max-width: 330px;
-    min-height: 3.6em;
-    max-height: 3.6em;
+    width: 100%;
+    height: 100%;
     overflow: hidden;
-    display: -webkit-box;
-    -webkit-line-clamp: 3;
-    -webkit-box-orient: vertical;
-    text-overflow: ellipsis;
+    display: block;
+    overflow-wrap: anywhere;
+    white-space: normal;
     opacity: 1;
-    padding: 0 0.22rem;
+    padding: 0;
+    text-align: center;
     text-shadow:
         2px 0 0 #000,
         1.414px 1.414px 0 #000,
@@ -405,6 +441,21 @@ body {
     color: #ffe7a4;
 }
 
+.card-footer {
+    width: 100%;
+    position: relative;
+    z-index: 5;
+    display: grid;
+    justify-items: center;
+    row-gap: 0;
+    margin-top: 0;
+    min-height: 0;
+    padding-top: 0;
+    padding-bottom: 0.45rem;
+    transform: none;
+    align-self: end;
+}
+
 .card-actions {
     width: min(100%, 360px);
     display: grid;
@@ -412,7 +463,7 @@ body {
     justify-items: center;
     align-items: center;
     gap: 0.24rem;
-    margin-top: 1.8rem;
+    margin-top: 0;
 }
 
 .action-btn {
@@ -455,40 +506,59 @@ body {
         drop-shadow(0 0 14px rgba(48, 190, 255, 0.55));
 }
 
-.action-btn:active {
-    transform: scale(0.95);
+.info-action {
+    position: relative;
+    display: grid;
+    place-items: center;
 }
 
-.run-counters {
-    margin: 0.25rem 0 0;
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 0.75rem;
-    color: #fff6f0;
-    font-size: 0.92rem;
-    line-height: 1.1;
-    text-shadow:
-        2px 0 0 #000,
-        1.414px 1.414px 0 #000,
-        0 2px 0 #000,
-        -1.414px 1.414px 0 #000,
-        -2px 0 0 #000,
-        -1.414px -1.414px 0 #000,
-        0 -2px 0 #000,
-        1.414px -1.414px 0 #000;
+.info-bubble {
+    position: absolute;
+    left: calc(100% - 0.55rem);
+    bottom: calc(100% + 0.18rem);
+    width: clamp(168px, 26vw, 226px);
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transform: translate(8px, 6px) scale(0.96);
+    transform-origin: left bottom;
+    transition:
+        opacity 140ms ease,
+        transform 180ms cubic-bezier(0.22, 1, 0.36, 1),
+        visibility 0s linear 180ms;
+    z-index: 40;
+    filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.35));
 }
 
-.run-counter--yes {
-    color: #c5ffc0;
+.info-action:hover .info-bubble,
+.info-action:focus-within .info-bubble {
+    opacity: 1;
+    visibility: visible;
+    transform: translate(0, 0) scale(1);
+    transition-delay: 0s;
 }
 
-.run-counter--no {
-    color: #ffd2c7;
+.info-bubble__bg {
+    width: 100%;
+    height: auto;
+    display: block;
 }
 
-.run-counter--super {
-    color: #c7f3ff;
+.info-bubble__text {
+    position: absolute;
+    inset: 21% 12% 24% 12%;
+    display: grid;
+    place-items: center;
+    text-align: center;
+    color: #4d3210;
+    font-size: 0.74rem;
+    line-height: 1.14;
+    letter-spacing: 0.015em;
+    text-shadow: 0 1px 0 rgba(255, 255, 255, 0.45);
+}
+
+.info-bubble__text strong {
+    font-size: 0.84rem;
 }
 
 @keyframes panel-enter {
@@ -570,10 +640,16 @@ body {
 
     .shell-active {
         height: 590px;
+        padding: 0.95rem 1rem 0.65rem;
     }
 
     .shell-active .panel {
-        height: 500px;
+        height: 100%;
+        min-height: 0;
+    }
+
+    .shell-active .panel.card-panel {
+        row-gap: 0.2rem;
     }
 
     .card-art-slot {
@@ -589,7 +665,7 @@ body {
     .card-actions {
         width: min(100%, 305px);
         gap: 0.2rem;
-        margin-top: 0.52rem;
+        margin-top: 0;
     }
 
     .action-btn {
@@ -604,8 +680,30 @@ body {
         width: clamp(35px, 10.4vw, 45px);
     }
 
-    .run-counters {
-        gap: 0.56rem;
-        font-size: 0.85rem;
+    .info-bubble {
+        width: clamp(146px, 46vw, 196px);
+        left: calc(100% - 0.55rem);
+        bottom: calc(100% + 0.08rem);
     }
+
+    .info-bubble__text {
+        font-size: 0.66rem;
+    }
+
+    .card-footer {
+        padding-top: 0;
+        padding-bottom: 0.35rem;
+    }
+
+    .card-meta {
+        width: min(100%, 294px);
+        height: 94px;
+        gap: 0.26rem;
+    }
+
+    .card-flavor-box {
+        height: 66px;
+        padding: 0.3rem 0.4rem;
+    }
+
 }
