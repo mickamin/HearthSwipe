@@ -1,5 +1,23 @@
+@font-face {
+    font-family: "Belwe";
+    src:
+        local("BelweBT-Bold"),
+        local("Belwe Bold BT"),
+        url("https://db.onlinewebfonts.com/t/3ee8a7eb4aa82d9eb4f73e85e2e02eaf.woff2") format("woff2"),
+        url("https://db.onlinewebfonts.com/t/3ee8a7eb4aa82d9eb4f73e85e2e02eaf.woff") format("woff");
+    font-style: normal;
+    font-weight: 700;
+    font-display: swap;
+}
+
 * {
     box-sizing: border-box;
+}
+
+:root {
+    --papyrus-tile-size: clamp(260px, 22vw, 420px);
+    --papyrus-base: #dac59b;
+    --papyrus-ink: #3f2503;
 }
 
 html, body, #root {
@@ -8,7 +26,38 @@ html, body, #root {
 
 body {
     margin: 0;
-    background-color: #0f172a;
-    color: white;
-    font-family: system-ui, sans-serif;
+    background-color: var(--papyrus-base);
+    background-image: url("./assets/papyrus-bg.png");
+    background-position: top left;
+    background-repeat: repeat;
+    background-size: var(--papyrus-tile-size) var(--papyrus-tile-size);
+    color: var(--papyrus-ink);
+    font-family: "Belwe", Georgia, serif;
+    font-weight: 700;
+}
+
+.app {
+    min-height: 100%;
+    display: grid;
+    place-items: center;
+    padding: 1.5rem;
+}
+
+.hero {
+    text-align: center;
+    padding: 0.5rem 1rem;
+}
+
+.hero p {
+    color: var(--papyrus-ink);
+    font-size: clamp(1rem, 2.2vw, 1.35rem);
+    letter-spacing: 0.2px;
+}
+
+.logo {
+    width: min(92vw, 720px);
+    height: auto;
+    display: block;
+    margin: 0 auto 1.25rem;
+    filter: drop-shadow(0 10px 14px rgba(78, 45, 17, 0.35));
 }
