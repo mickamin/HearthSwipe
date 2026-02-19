@@ -56,7 +56,17 @@ type RawHearthstoneCard = Partial<Omit<HearthstoneCard, "rarity">> & {
     rarity?: string;
 };
 
+type CardCacheRecord = {
+    schemaVersion: number;
+    sourceUrl: string;
+    savedAt: number;
+    cards: RawHearthstoneCard[];
+};
+
 const CARDS_URL = "https://api.hearthstonejson.com/v1/latest/enUS/cards.collectible.json";
+const CARD_CACHE_KEY = "hearthswipe.collectible-cards.v1";
+const CARD_CACHE_SCHEMA_VERSION = 1;
+const CARD_CACHE_TTL_MS = 1000 * 60 * 60 * 12;
 const RUN_SIZE = 30;
 const MIN_LOADING_MS = 700;
 const RUN_REVERSE_LIMIT = 3;
@@ -77,6 +87,9 @@ const SWIPE_FADE_START_RATIO = 0.62;
 const SWIPE_FADE_VIEWPORT_MID_RATIO = 0.5;
 const REVERSE_EDGE_CUE_MS = 360;
 const REVERSE_CENTER_CUE_MS = 240;
+
+let inMemoryCardsCache: HearthstoneCard[] | null = null;
+let inFlightCardsRequest: Promise<HearthstoneCard[]> | null = null;
 
 function previewActionFromOffsets(x: number, y: number, canUseSuperLike: boolean): SwipeAction | null {
     if (canUseSuperLike && y <= -58 && Math.abs(y) > Math.abs(x) * 1.08) {
@@ -208,7 +221,78 @@ function shuffle<T>(arr: T[]): T[] {
     return copy;
 }
 
-async function fetchCards(): Promise<HearthstoneCard[]> {
+function canUseLocalStorage(): boolean {
+    return typeof window !== "undefined" && typeof window.localStorage !== "undefined";
+}
+
+function isCardCacheRecord(value: unknown): value is CardCacheRecord {
+    if (!value || typeof value !== "object") {
+        return false;
+    }
+
+    const candidate = value as Partial<CardCacheRecord>;
+    return (
+        candidate.schemaVersion === CARD_CACHE_SCHEMA_VERSION &&
+        candidate.sourceUrl === CARDS_URL &&
+        typeof candidate.savedAt === "number" &&
+        Array.isArray(candidate.cards)
+    );
+}
+
+function readCardsFromLocalCache(options?: { allowStale?: boolean }): HearthstoneCard[] | null {
+    if (!canUseLocalStorage()) {
+        return null;
+    }
+
+    try {
+        const raw = window.localStorage.getItem(CARD_CACHE_KEY);
+        if (!raw) {
+            return null;
+        }
+
+        const parsed = JSON.parse(raw) as unknown;
+        if (!isCardCacheRecord(parsed)) {
+            window.localStorage.removeItem(CARD_CACHE_KEY);
+            return null;
+        }
+
+        const isStale = Date.now() - parsed.savedAt > CARD_CACHE_TTL_MS;
+        if (isStale && !options?.allowStale) {
+            return null;
+        }
+
+        const cards = parsed.cards.map(cleanCard).filter((card): card is HearthstoneCard => Boolean(card));
+        if (cards.length === 0) {
+            window.localStorage.removeItem(CARD_CACHE_KEY);
+            return null;
+        }
+
+        return cards;
+    } catch {
+        return null;
+    }
+}
+
+function writeCardsToLocalCache(cards: HearthstoneCard[]): void {
+    if (!canUseLocalStorage() || cards.length === 0) {
+        return;
+    }
+
+    const payload: CardCacheRecord = {
+        schemaVersion: CARD_CACHE_SCHEMA_VERSION,
+        sourceUrl: CARDS_URL,
+        savedAt: Date.now(),
+        cards,
+    };
+
+    try {
+        window.localStorage.setItem(CARD_CACHE_KEY, JSON.stringify(payload));
+    } catch {
+        // Best effort only: quota/privacy modes can block writes.
+    }
+}
+
+async function fetchCardsFromNetwork(): Promise<HearthstoneCard[]> {
     const response = await fetch(CARDS_URL);
     if (!response.ok) {
         throw new Error(`Failed to fetch cards (${response.status})`);
@@ -216,7 +300,46 @@ async function fetchCards(): Promise<HearthstoneCard[]> {
 
     const raw = (await response.json()) as RawHearthstoneCard[];
     const cards = raw.map(cleanCard).filter((card): card is HearthstoneCard => Boolean(card));
+    if (cards.length === 0) {
+        throw new Error("Card payload was empty after filtering.");
+    }
     return cards;
+}
+
+async function fetchCards(): Promise<HearthstoneCard[]> {
+    if (inMemoryCardsCache && inMemoryCardsCache.length > 0) {
+        return inMemoryCardsCache;
+    }
+
+    const freshFromCache = readCardsFromLocalCache();
+    if (freshFromCache) {
+        inMemoryCardsCache = freshFromCache;
+        return freshFromCache;
+    }
+
+    if (inFlightCardsRequest) {
+        return inFlightCardsRequest;
+    }
+
+    const staleFromCache = readCardsFromLocalCache({ allowStale: true });
+    inFlightCardsRequest = (async () => {
+        try {
+            const cards = await fetchCardsFromNetwork();
+            inMemoryCardsCache = cards;
+            writeCardsToLocalCache(cards);
+            return cards;
+        } catch (error) {
+            if (staleFromCache && staleFromCache.length > 0) {
+                inMemoryCardsCache = staleFromCache;
+                return staleFromCache;
+            }
+            throw error;
+        } finally {
+            inFlightCardsRequest = null;
+        }
+    })();
+
+    return inFlightCardsRequest;
 }
 
 function cardImageUrl(cardId: string): string {
