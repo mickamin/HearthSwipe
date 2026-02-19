@@ -6,6 +6,7 @@ import buttonReverse from "./assets/button-reverse.png";
 import buttonSuper from "./assets/button-super.png";
 import buttonYes from "./assets/button-yes.png";
 import overlayVoteNo from "./assets/overlay-vote-no.png";
+import overlayVoteReverse from "./assets/overlay-vote-reverse.png";
 import overlayVoteSuper from "./assets/overlay-vote-super.png";
 import overlayVoteYes from "./assets/overlay-vote-yes.png";
 import popupChatBubble from "./assets/popup-chat-bubble.png";
@@ -35,6 +36,14 @@ type ExitAnimationState = {
     rotate: number;
 };
 
+type ReverseCueDirection = "left" | "right" | "up";
+
+type ReverseCueState = {
+    phase: "edge" | "center";
+    direction: ReverseCueDirection;
+    cardId: string;
+};
+
 type HearthstoneCard = {
     id: string;
     name: string;
@@ -61,7 +70,13 @@ const SWIPE_COMMIT_VELOCITY = 0.5;
 const SUPER_SWIPE_COMMIT_PX = 102;
 const SUPER_SWIPE_COMMIT_VELOCITY = 0.45;
 const SWIPE_ANIMATION_MS = 420;
+const SWIPE_EXIT_FADE_MS = 230;
 const SWIPE_INDICATOR_PREVIEW_PX = 26;
+const SWIPE_FADE_MIN_START_PX = 54;
+const SWIPE_FADE_START_RATIO = 0.62;
+const SWIPE_FADE_VIEWPORT_MID_RATIO = 0.5;
+const REVERSE_EDGE_CUE_MS = 360;
+const REVERSE_CENTER_CUE_MS = 240;
 
 function previewActionFromOffsets(x: number, y: number, canUseSuperLike: boolean): SwipeAction | null {
     if (canUseSuperLike && y <= -58 && Math.abs(y) > Math.abs(x) * 1.08) {
@@ -74,6 +89,48 @@ function previewActionFromOffsets(x: number, y: number, canUseSuperLike: boolean
         return "no";
     }
     return null;
+}
+
+function reverseDirectionFromAction(action: SwipeAction): ReverseCueDirection {
+    if (action === "yes") {
+        return "right";
+    }
+    if (action === "no") {
+        return "left";
+    }
+    return "up";
+}
+
+function swipeFadeBoundsPx(): { start: number; end: number } {
+    if (typeof window === "undefined") {
+        return {
+            start: 160,
+            end: 320,
+        };
+    }
+
+    const viewportHalfWidth = window.innerWidth * 0.5;
+    const shellWidth = Math.min(500, Math.max(280, window.innerWidth - 32));
+    const shellHalfWidth = Math.min(viewportHalfWidth, shellWidth * 0.5);
+    const distanceFromShellToViewportEdge = Math.max(viewportHalfWidth - shellHalfWidth, 0);
+    const start = Math.max(SWIPE_FADE_MIN_START_PX, shellHalfWidth * SWIPE_FADE_START_RATIO);
+    const end = Math.max(start + 1, shellHalfWidth + distanceFromShellToViewportEdge * SWIPE_FADE_VIEWPORT_MID_RATIO);
+
+    return {
+        start,
+        end,
+    };
+}
+
+function opacityForSwipeOffset(x: number, y: number): number {
+    const distance = Math.hypot(x, y * 0.92);
+    const bounds = swipeFadeBoundsPx();
+    if (distance <= bounds.start) {
+        return 1;
+    }
+    const fadeRange = Math.max(bounds.end - bounds.start, 1);
+    const progress = Math.min(1, (distance - bounds.start) / fadeRange);
+    return Math.max(0, 1 - progress);
 }
 
 const DEFAULT_DRAG_STATE: DragState = {
@@ -294,6 +351,7 @@ export default function App() {
     const [reverseCooldownUntilIndex, setReverseCooldownUntilIndex] = useState(0);
     const [dragState, setDragState] = useState<DragState>(DEFAULT_DRAG_STATE);
     const [exitAnimation, setExitAnimation] = useState<ExitAnimationState | null>(null);
+    const [reverseCue, setReverseCue] = useState<ReverseCueState | null>(null);
     const dragOriginRef = useRef<{ pointerId: number | null; x: number; y: number; startedAtMs: number }>({
         pointerId: null,
         x: 0,
@@ -301,14 +359,17 @@ export default function App() {
         startedAtMs: 0,
     });
     const actionTimerRef = useRef<number | null>(null);
+    const reverseCueTimerRef = useRef<number | null>(null);
+    const reverseCueClearTimerRef = useRef<number | null>(null);
 
     const currentCard = useMemo(() => deck[index], [deck, index]);
     const visibleCards = useMemo(() => deck.slice(index, index + STACK_VISIBLE_CARDS), [deck, index]);
     const previousCardIndex = index - 1;
     const reversesLeft = Math.max(0, RUN_REVERSE_LIMIT - reverseUses);
     const superLikesLeft = Math.max(0, RUN_SUPER_LIKE_LIMIT - runCounters.super);
-    const canUseSuperLike = superLikesLeft > 0 && !exitAnimation;
     const isAnimatingSwipe = Boolean(exitAnimation);
+    const isAnimatingReverse = Boolean(reverseCue);
+    const canUseSuperLike = superLikesLeft > 0 && !isAnimatingSwipe && !isAnimatingReverse;
     const dragPreviewAction = previewActionFromOffsets(dragState.x, dragState.y, canUseSuperLike);
     const nextCardVoteIcon =
         dragPreviewAction === "yes"
@@ -318,10 +379,11 @@ export default function App() {
               : dragPreviewAction === "super"
                 ? overlayVoteSuper
                 : null;
-    const showNextCardVoteIcon = Boolean(nextCardVoteIcon && visibleCards.length > 1 && !isAnimatingSwipe);
+    const showNextCardVoteIcon = Boolean(nextCardVoteIcon && visibleCards.length > 1 && !isAnimatingSwipe && !isAnimatingReverse);
     const reverseInCooldown = index < reverseCooldownUntilIndex;
     const canReversePreviousCard =
         !isAnimatingSwipe &&
+        !isAnimatingReverse &&
         !reverseInCooldown &&
         previousCardIndex >= 0 &&
         reversesLeft > 0 &&
@@ -340,6 +402,8 @@ export default function App() {
         ? `Super Like (${superLikesLeft} left)`
         : isAnimatingSwipe
           ? "Wait for current swipe"
+          : isAnimatingReverse
+            ? "Wait for reverse cue"
           : "No super likes left";
 
     const markCardLoaded = (cardId: string) => {
@@ -382,6 +446,12 @@ export default function App() {
             if (actionTimerRef.current !== null) {
                 window.clearTimeout(actionTimerRef.current);
             }
+            if (reverseCueTimerRef.current !== null) {
+                window.clearTimeout(reverseCueTimerRef.current);
+            }
+            if (reverseCueClearTimerRef.current !== null) {
+                window.clearTimeout(reverseCueClearTimerRef.current);
+            }
         };
     }, []);
 
@@ -390,9 +460,18 @@ export default function App() {
             window.clearTimeout(actionTimerRef.current);
             actionTimerRef.current = null;
         }
+        if (reverseCueTimerRef.current !== null) {
+            window.clearTimeout(reverseCueTimerRef.current);
+            reverseCueTimerRef.current = null;
+        }
+        if (reverseCueClearTimerRef.current !== null) {
+            window.clearTimeout(reverseCueClearTimerRef.current);
+            reverseCueClearTimerRef.current = null;
+        }
         dragOriginRef.current.pointerId = null;
         setDragState(DEFAULT_DRAG_STATE);
         setExitAnimation(null);
+        setReverseCue(null);
     };
 
     const finalizeActionAtIndex = (action: SwipeAction, actionIndex: number) => {
@@ -408,7 +487,7 @@ export default function App() {
     };
 
     const animateAction = (action: SwipeAction) => {
-        if (phase !== "ready" || !currentCard || isAnimatingSwipe) {
+        if (phase !== "ready" || !currentCard || isAnimatingSwipe || isAnimatingReverse) {
             return;
         }
         if (action === "super" && !canUseSuperLike) {
@@ -458,7 +537,7 @@ export default function App() {
     };
 
     const handleCardPointerDown = (event: ReactPointerEvent<HTMLElement>) => {
-        if (isAnimatingSwipe || phase !== "ready") {
+        if (isAnimatingSwipe || isAnimatingReverse || phase !== "ready") {
             return;
         }
         if (event.pointerType === "mouse" && event.button !== 0) {
@@ -542,23 +621,26 @@ export default function App() {
         let translateX = 0;
         let translateY = baseTranslateY;
         let rotate = 0;
-        let transition = "transform 320ms ease-in-out, opacity 220ms ease";
+        let cardOpacity = isTopCard ? 1 : baseOpacity;
+        let transition = "transform 320ms ease-in-out, opacity 180ms ease-out";
 
         if (isTopCard && dragState.isActive) {
             translateX = dragState.x;
             translateY = dragState.y;
             rotate = dragState.x * 0.045 + dragState.y * 0.01;
+            cardOpacity = opacityForSwipeOffset(translateX, translateY);
             transition = "none";
         } else if (isExiting && exitAnimation) {
             translateX = exitAnimation.x;
             translateY = exitAnimation.y;
             rotate = exitAnimation.rotate;
-            transition = `transform ${SWIPE_ANIMATION_MS}ms ease-in-out, opacity 220ms ease`;
+            cardOpacity = 0;
+            transition = `transform ${SWIPE_ANIMATION_MS}ms ease-in-out, opacity ${SWIPE_EXIT_FADE_MS}ms cubic-bezier(0.4, 0, 1, 1)`;
         }
 
         return {
             zIndex: STACK_VISIBLE_CARDS - stackIndex,
-            opacity: isTopCard ? 1 : baseOpacity,
+            opacity: cardOpacity,
             transform: `translate(${translateX}px, ${translateY}px) rotate(${rotate}deg) scale(${baseScale})`,
             transition,
         };
@@ -600,29 +682,50 @@ export default function App() {
             return;
         }
 
+        const sourceIndex = index;
         const targetIndex = previousCardIndex;
         const previousAction = actionsByIndex[targetIndex];
-        if (!previousAction) {
+        const targetCard = deck[targetIndex];
+        if (!previousAction || !targetCard) {
             return;
         }
 
-        setRunCounters((prev) => ({
-            ...prev,
-            [previousAction]: Math.max(prev[previousAction] - 1, 0),
-        }));
-        setActionsByIndex((prev) => {
-            const next = { ...prev };
-            delete next[targetIndex];
-            return next;
-        });
-        setReversedCardIndexes((prev) => ({
-            ...prev,
-            [targetIndex]: true,
-        }));
-        setReverseUses((prev) => prev + 1);
-        setReverseCooldownUntilIndex(index + 1);
+        const direction = reverseDirectionFromAction(previousAction);
         clearPendingAction();
-        setIndex(targetIndex);
+        setReverseCue({
+            phase: "edge",
+            direction,
+            cardId: targetCard.id,
+        });
+
+        reverseCueTimerRef.current = window.setTimeout(() => {
+            setRunCounters((prev) => ({
+                ...prev,
+                [previousAction]: Math.max(prev[previousAction] - 1, 0),
+            }));
+            setActionsByIndex((prev) => {
+                const next = { ...prev };
+                delete next[targetIndex];
+                return next;
+            });
+            setReversedCardIndexes((prev) => ({
+                ...prev,
+                [targetIndex]: true,
+            }));
+            setReverseUses((prev) => prev + 1);
+            setReverseCooldownUntilIndex(sourceIndex + 1);
+            setIndex(targetIndex);
+            setReverseCue({
+                phase: "center",
+                direction,
+                cardId: targetCard.id,
+            });
+            reverseCueTimerRef.current = null;
+            reverseCueClearTimerRef.current = window.setTimeout(() => {
+                setReverseCue(null);
+                reverseCueClearTimerRef.current = null;
+            }, REVERSE_CENTER_CUE_MS);
+        }, REVERSE_EDGE_CUE_MS);
     };
 
     const reset = () => {
@@ -712,10 +815,20 @@ export default function App() {
                                             <img src={nextCardVoteIcon ?? ""} alt="" />
                                         </div>
                                     )}
+                                    {reverseCue?.phase === "edge" && (
+                                        <div className={`reverse-edge-cue reverse-edge-cue--${reverseCue.direction}`} aria-hidden="true">
+                                            <img className="reverse-edge-cue__card" src={cardImageUrl(reverseCue.cardId)} alt="" />
+                                        </div>
+                                    )}
+                                    {reverseCue?.phase === "center" && (
+                                        <div className="next-card-vote-overlay next-card-vote-overlay--reverse" aria-hidden="true">
+                                            <img src={overlayVoteReverse} alt="" />
+                                        </div>
+                                    )}
                                     {visibleCards.map((card, stackIndex) => {
                                         const absoluteIndex = index + stackIndex;
                                         const isTopCard = stackIndex === 0;
-                                        const isTopInteractive = isTopCard && !isAnimatingSwipe;
+                                        const isTopInteractive = isTopCard && !isAnimatingSwipe && !isAnimatingReverse;
                                         return (
                                             <article
                                                 key={card.id}
@@ -761,7 +874,7 @@ export default function App() {
                                         onClick={() => animateAction("no")}
                                         type="button"
                                         aria-label="Nope"
-                                        disabled={isAnimatingSwipe}
+                                        disabled={isAnimatingSwipe || isAnimatingReverse}
                                     >
                                         <img src={buttonNo} alt="" />
                                     </button>
@@ -780,7 +893,7 @@ export default function App() {
                                         onClick={() => animateAction("yes")}
                                         type="button"
                                         aria-label="Like"
-                                        disabled={isAnimatingSwipe}
+                                        disabled={isAnimatingSwipe || isAnimatingReverse}
                                     >
                                         <img src={buttonYes} alt="" />
                                     </button>
@@ -791,7 +904,7 @@ export default function App() {
                                         <div className="info-bubble" aria-hidden="true">
                                             <img className="info-bubble__bg" src={popupChatBubble} alt="" />
                                             <span className="info-bubble__text">
-                                                {RUN_SIZE} cards per run. {RUN_REVERSE_LIMIT} reverses total, latest card only, one reverse per card. {RUN_SUPER_LIKE_LIMIT} super likes total.
+                                                {RUN_SIZE} cards. {RUN_REVERSE_LIMIT} reverses. {RUN_SUPER_LIKE_LIMIT} Super Likes. Save the flashy plays for the coolest cards.
                                             </span>
                                         </div>
                                     </div>

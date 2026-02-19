@@ -402,6 +402,60 @@ body {
     filter: brightness(1.03) drop-shadow(0 2px 3px rgba(0, 0, 0, 0.22));
 }
 
+.next-card-vote-overlay--reverse {
+    opacity: 0;
+    animation: reverse-center-pop 230ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.reverse-edge-cue {
+    --cue-start-x: 0px;
+    --cue-start-y: 0px;
+    --cue-bump-x: 0px;
+    --cue-bump-y: 0px;
+    position: absolute;
+    left: 50%;
+    top: 0;
+    z-index: 26;
+    width: 256px;
+    height: 374px;
+    pointer-events: none;
+    opacity: 0;
+    transform: translate(-50%, 0) scale(1);
+    animation: reverse-edge-materialize 360ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.reverse-edge-cue__card {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
+    filter:
+        brightness(1.03)
+        drop-shadow(0 3px 8px rgba(0, 0, 0, 0.34));
+}
+
+.reverse-edge-cue--left {
+    --cue-start-x: -216px;
+    --cue-start-y: -6px;
+    --cue-bump-x: -18px;
+    --cue-bump-y: -2px;
+    transform-origin: left center;
+}
+
+.reverse-edge-cue--right {
+    --cue-start-x: 216px;
+    --cue-start-y: -6px;
+    --cue-bump-x: 18px;
+    --cue-bump-y: -2px;
+    transform-origin: right center;
+}
+
+.reverse-edge-cue--up {
+    --cue-start-y: -214px;
+    --cue-bump-y: -24px;
+    transform-origin: center top;
+}
+
 .card-image {
     width: 256px;
     height: 374px;
@@ -743,6 +797,36 @@ body {
     }
 }
 
+@keyframes reverse-edge-materialize {
+    0% {
+        opacity: 0;
+        transform: translate(calc(-50% + var(--cue-start-x)), var(--cue-start-y)) scale(0.84);
+    }
+    58% {
+        opacity: 0.68;
+        transform: translate(calc(-50% + var(--cue-bump-x)), var(--cue-bump-y)) scale(1.06);
+    }
+    100% {
+        opacity: 1;
+        transform: translate(-50%, 0) scale(1);
+    }
+}
+
+@keyframes reverse-center-pop {
+    0% {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(0.84);
+    }
+    62% {
+        opacity: 0.54;
+        transform: translate(-50%, -50%) scale(1.14);
+    }
+    100% {
+        opacity: 0.45;
+        transform: translate(-50%, -50%) scale(1.02);
+    }
+}
+
 .reveal {
     opacity: 0;
     animation: reveal-enter 220ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
@@ -772,6 +856,21 @@ body {
     .info-action:focus-within .info-bubble {
         animation: none;
         transform: translate(0, 0) scale(1);
+    }
+
+    .reverse-edge-cue,
+    .next-card-vote-overlay--reverse {
+        animation: none;
+    }
+
+    .reverse-edge-cue {
+        opacity: 1;
+        transform: translate(-50%, 0) scale(1);
+    }
+
+    .next-card-vote-overlay--reverse {
+        opacity: 0.45;
+        transform: translate(-50%, -50%) scale(1);
     }
 }
 
@@ -848,6 +947,26 @@ body {
     .next-card-vote-overlay img {
         width: 34px;
         height: 34px;
+    }
+
+    .reverse-edge-cue {
+        width: 220px;
+        height: 320px;
+    }
+
+    .reverse-edge-cue--left {
+        --cue-start-x: -152px;
+        --cue-bump-x: -12px;
+    }
+
+    .reverse-edge-cue--right {
+        --cue-start-x: 152px;
+        --cue-bump-x: 12px;
+    }
+
+    .reverse-edge-cue--up {
+        --cue-start-y: -142px;
+        --cue-bump-y: -16px;
     }
 
     .card-actions {
