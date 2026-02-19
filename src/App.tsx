@@ -10,6 +10,7 @@ import overlayVoteReverse from "./assets/overlay-vote-reverse.png";
 import overlayVoteSuper from "./assets/overlay-vote-super.png";
 import overlayVoteYes from "./assets/overlay-vote-yes.png";
 import popupChatBubble from "./assets/popup-chat-bubble.png";
+import { computeRunBadges, formatPercent, type BadgeAward, type KeyBreakdownMap, type RunStats } from "./badge-rules";
 
 type Phase = "intro" | "loading" | "ready" | "error";
 
@@ -47,25 +48,49 @@ type ReverseCueState = {
 type HearthstoneCard = {
     id: string;
     name: string;
-    artist?: string;
-    flavor?: string;
+    artist: string;
+    flavor: string;
     rarity: CardRarity;
+    cost: number | null;
+    cardType: string;
+    cardClass: string;
+    races: string[];
+    mechanics: string[];
+    attack: number | null;
+    health: number | null;
+    cardSet: string;
 };
 
-type RawHearthstoneCard = Partial<Omit<HearthstoneCard, "rarity">> & {
+type RawCardTag = string | { name?: string } | null | undefined;
+
+type RawHearthstoneCard = {
+    id?: string;
+    name?: string;
+    artist?: string;
+    flavor?: string;
     rarity?: string;
+    cost?: number;
+    type?: string;
+    cardClass?: string;
+    race?: string;
+    races?: string[] | string;
+    mechanics?: RawCardTag[];
+    referencedTags?: RawCardTag[];
+    attack?: number;
+    health?: number;
+    set?: string;
 };
 
 type CardCacheRecord = {
     schemaVersion: number;
     sourceUrl: string;
     savedAt: number;
-    cards: RawHearthstoneCard[];
+    cards: HearthstoneCard[];
 };
 
 const CARDS_URL = "https://api.hearthstonejson.com/v1/latest/enUS/cards.collectible.json";
-const CARD_CACHE_KEY = "hearthswipe.collectible-cards.v1";
-const CARD_CACHE_SCHEMA_VERSION = 1;
+const CARD_CACHE_KEY = "hearthswipe.collectible-cards.v2";
+const CARD_CACHE_SCHEMA_VERSION = 2;
 const CARD_CACHE_TTL_MS = 1000 * 60 * 60 * 12;
 const RUN_SIZE = 30;
 const MIN_LOADING_MS = 700;
@@ -87,6 +112,18 @@ const SWIPE_FADE_START_RATIO = 0.62;
 const SWIPE_FADE_VIEWPORT_MID_RATIO = 0.5;
 const REVERSE_EDGE_CUE_MS = 360;
 const REVERSE_CENTER_CUE_MS = 240;
+
+type RunSummary = {
+    totalCards: number;
+    likes: number;
+    nopes: number;
+    superLikes: number;
+    likeRatio: number;
+    avgMana: number | null;
+    reversesUsed: number;
+    primaryTitle: BadgeAward | null;
+    badges: BadgeAward[];
+};
 
 let inMemoryCardsCache: HearthstoneCard[] | null = null;
 let inFlightCardsRequest: Promise<HearthstoneCard[]> | null = null;
@@ -186,6 +223,79 @@ function normalizeRarity(rarity?: string): CardRarity {
     }
 }
 
+function normalizeToken(value: unknown): string {
+    if (typeof value !== "string") {
+        return "";
+    }
+    return value
+        .trim()
+        .replace(/\s+/g, "_")
+        .replace(/-/g, "_")
+        .toUpperCase();
+}
+
+function optionalNumber(value: unknown): number | null {
+    return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function normalizeTokenList(value: unknown): string[] {
+    if (Array.isArray(value)) {
+        const tokens = value
+            .map((entry) => (typeof entry === "string" ? entry : typeof entry === "object" && entry ? (entry as { name?: unknown }).name : ""))
+            .map((entry) => normalizeToken(entry))
+            .filter(Boolean);
+        return Array.from(new Set(tokens));
+    }
+
+    if (typeof value === "string") {
+        const tokens = value
+            .split(/[|,]/)
+            .map((token) => normalizeToken(token))
+            .filter(Boolean);
+        return Array.from(new Set(tokens));
+    }
+
+    return [];
+}
+
+function extractCardRaces(card: RawHearthstoneCard): string[] {
+    if (card.races) {
+        return normalizeTokenList(card.races);
+    }
+    return normalizeTokenList(card.race);
+}
+
+function extractCardMechanics(card: RawHearthstoneCard): string[] {
+    const direct = normalizeTokenList(card.mechanics);
+    const referenced = normalizeTokenList(card.referencedTags);
+    return Array.from(new Set([...direct, ...referenced]));
+}
+
+function isHearthstoneCard(value: unknown): value is HearthstoneCard {
+    if (!value || typeof value !== "object") {
+        return false;
+    }
+
+    const card = value as Partial<HearthstoneCard>;
+    return (
+        typeof card.id === "string" &&
+        typeof card.name === "string" &&
+        typeof card.artist === "string" &&
+        typeof card.flavor === "string" &&
+        typeof card.rarity === "string" &&
+        (typeof card.cost === "number" || card.cost === null) &&
+        typeof card.cardType === "string" &&
+        typeof card.cardClass === "string" &&
+        Array.isArray(card.races) &&
+        card.races.every((race) => typeof race === "string") &&
+        Array.isArray(card.mechanics) &&
+        card.mechanics.every((mechanic) => typeof mechanic === "string") &&
+        (typeof card.attack === "number" || card.attack === null) &&
+        (typeof card.health === "number" || card.health === null) &&
+        typeof card.cardSet === "string"
+    );
+}
+
 function rarityClassName(rarity: CardRarity): string {
     return `rarity-${rarity.toLowerCase()}`;
 }
@@ -209,6 +319,14 @@ function cleanCard(card: RawHearthstoneCard): HearthstoneCard | null {
         artist,
         flavor,
         rarity: normalizeRarity(card.rarity),
+        cost: optionalNumber(card.cost),
+        cardType: normalizeToken(card.type) || "UNKNOWN",
+        cardClass: normalizeToken(card.cardClass) || "UNKNOWN",
+        races: extractCardRaces(card),
+        mechanics: extractCardMechanics(card),
+        attack: optionalNumber(card.attack),
+        health: optionalNumber(card.health),
+        cardSet: normalizeToken(card.set) || "UNKNOWN",
     };
 }
 
@@ -235,7 +353,8 @@ function isCardCacheRecord(value: unknown): value is CardCacheRecord {
         candidate.schemaVersion === CARD_CACHE_SCHEMA_VERSION &&
         candidate.sourceUrl === CARDS_URL &&
         typeof candidate.savedAt === "number" &&
-        Array.isArray(candidate.cards)
+        Array.isArray(candidate.cards) &&
+        candidate.cards.every((card) => isHearthstoneCard(card))
     );
 }
 
@@ -261,13 +380,12 @@ function readCardsFromLocalCache(options?: { allowStale?: boolean }): Hearthston
             return null;
         }
 
-        const cards = parsed.cards.map(cleanCard).filter((card): card is HearthstoneCard => Boolean(card));
-        if (cards.length === 0) {
+        if (parsed.cards.length === 0) {
             window.localStorage.removeItem(CARD_CACHE_KEY);
             return null;
         }
 
-        return cards;
+        return parsed.cards;
     } catch {
         return null;
     }
@@ -340,6 +458,143 @@ async function fetchCards(): Promise<HearthstoneCard[]> {
     })();
 
     return inFlightCardsRequest;
+}
+
+function incrementBreakdown(stats: KeyBreakdownMap, key: string, liked: boolean): void {
+    if (!key) {
+        return;
+    }
+
+    const entry = stats[key] ?? { seen: 0, liked: 0 };
+    entry.seen += 1;
+    if (liked) {
+        entry.liked += 1;
+    }
+    stats[key] = entry;
+}
+
+function compileRunStats(deck: HearthstoneCard[], actionsByIndex: Record<number, SwipeAction>, reversesUsed: number): RunStats {
+    const byType: KeyBreakdownMap = {};
+    const byRarity: KeyBreakdownMap = {};
+    const byClass: KeyBreakdownMap = {};
+    const byRace: KeyBreakdownMap = {};
+    const byMechanic: KeyBreakdownMap = {};
+    const bySet: KeyBreakdownMap = {};
+
+    let totalCards = 0;
+    let likes = 0;
+    let nopes = 0;
+    let superLikes = 0;
+
+    let likedManaSum = 0;
+    let likedManaCount = 0;
+    let seenZeroCost = 0;
+    let likedZeroCost = 0;
+    let likedLowCost = 0;
+    let likedHighCost = 0;
+    let likedEvenCost = 0;
+    let likedOddCost = 0;
+
+    let likedMinionCount = 0;
+    let likedMinionAttackSum = 0;
+    let likedMinionHealthSum = 0;
+
+    deck.forEach((card, cardIndex) => {
+        const action = actionsByIndex[cardIndex];
+        if (!action) {
+            return;
+        }
+
+        totalCards += 1;
+        const liked = action === "yes" || action === "super";
+        if (liked) {
+            likes += 1;
+        } else {
+            nopes += 1;
+        }
+        if (action === "super") {
+            superLikes += 1;
+        }
+
+        incrementBreakdown(byType, card.cardType, liked);
+        incrementBreakdown(byRarity, card.rarity, liked);
+        incrementBreakdown(byClass, card.cardClass, liked);
+        incrementBreakdown(bySet, card.cardSet, liked);
+
+        Array.from(new Set(card.races)).forEach((race) => incrementBreakdown(byRace, race, liked));
+        Array.from(new Set(card.mechanics)).forEach((mechanic) => incrementBreakdown(byMechanic, mechanic, liked));
+
+        if (card.cost !== null) {
+            if (card.cost === 0) {
+                seenZeroCost += 1;
+                if (liked) {
+                    likedZeroCost += 1;
+                }
+            }
+            if (liked) {
+                likedManaSum += card.cost;
+                likedManaCount += 1;
+                if (card.cost <= 2) {
+                    likedLowCost += 1;
+                }
+                if (card.cost >= 7) {
+                    likedHighCost += 1;
+                }
+                if (card.cost % 2 === 0) {
+                    likedEvenCost += 1;
+                } else {
+                    likedOddCost += 1;
+                }
+            }
+        }
+
+        if (liked && card.cardType === "MINION" && card.attack !== null && card.health !== null) {
+            likedMinionCount += 1;
+            likedMinionAttackSum += card.attack;
+            likedMinionHealthSum += card.health;
+        }
+    });
+
+    return {
+        totalCards,
+        likes,
+        nopes,
+        superLikes,
+        reverses: reversesUsed,
+        likeRatio: totalCards > 0 ? likes / totalCards : 0,
+        avgMana: likedManaCount > 0 ? likedManaSum / likedManaCount : null,
+        seenZeroCost,
+        likedZeroCost,
+        likedLowCost,
+        likedHighCost,
+        likedEvenCost,
+        likedOddCost,
+        likedMinionCount,
+        avgLikedMinionAttack: likedMinionCount > 0 ? likedMinionAttackSum / likedMinionCount : null,
+        avgLikedMinionHealth: likedMinionCount > 0 ? likedMinionHealthSum / likedMinionCount : null,
+        byType,
+        byRarity,
+        byClass,
+        byRace,
+        byMechanic,
+        bySet,
+    };
+}
+
+function buildRunSummary(deck: HearthstoneCard[], actionsByIndex: Record<number, SwipeAction>, reversesUsed: number): RunSummary {
+    const stats = compileRunStats(deck, actionsByIndex, reversesUsed);
+    const badgeResult = computeRunBadges(stats);
+    return {
+        totalCards: stats.totalCards,
+        likes: stats.likes,
+        nopes: stats.nopes,
+        superLikes: stats.superLikes,
+        likeRatio: stats.likeRatio,
+        avgMana: stats.avgMana,
+        reversesUsed,
+        primaryTitle: badgeResult.primaryTitle,
+        badges: badgeResult.badges,
+    };
 }
 
 function cardImageUrl(cardId: string): string {
@@ -528,6 +783,10 @@ export default function App() {
           : isAnimatingReverse
             ? "Wait for reverse cue"
           : "No super likes left";
+    const runSummary = useMemo(
+        () => buildRunSummary(deck, actionsByIndex, reverseUses),
+        [deck, actionsByIndex, reverseUses],
+    );
 
     const markCardLoaded = (cardId: string) => {
         setLoadedCardIds((prev) => {
@@ -868,7 +1127,7 @@ export default function App() {
     };
 
     const isDone = phase === "ready" && index >= deck.length;
-    const shellClassName = `game-shell ${phase === "intro" ? "shell-intro" : "shell-active"}`;
+    const shellClassName = `game-shell ${phase === "intro" ? "shell-intro" : isDone ? "shell-complete" : "shell-active"}`;
 
     return (
         <div className="app">
@@ -1041,15 +1300,83 @@ export default function App() {
                     )}
 
                     {isDone && (
-                        <section className="panel panel--enter">
+                        <section className="panel panel--enter panel--run-complete">
                             <h1>Run complete</h1>
-                            <p>You went through {deck.length} cards.</p>
-                            <p>
-                                No: {runCounters.no} | Super: {runCounters.super} | Yes: {runCounters.yes}
-                            </p>
-                            <p>Reverses used: {reverseUses}</p>
+                            <p className="run-summary-intro">You judged {runSummary.totalCards} cards this run.</p>
+
+                            <div className="run-summary-grid">
+                                <article className="run-summary-stat">
+                                    <span className="run-summary-stat__label">Like Rate</span>
+                                    <strong className="run-summary-stat__value">{formatPercent(runSummary.likeRatio)}</strong>
+                                </article>
+                                <article className="run-summary-stat">
+                                    <span className="run-summary-stat__label">Avg Liked Mana</span>
+                                    <strong className="run-summary-stat__value">
+                                        {runSummary.avgMana === null ? "n/a" : runSummary.avgMana.toFixed(1)}
+                                    </strong>
+                                </article>
+                                <article className="run-summary-stat">
+                                    <span className="run-summary-stat__label">Likes</span>
+                                    <strong className="run-summary-stat__value">{runSummary.likes}</strong>
+                                </article>
+                                <article className="run-summary-stat">
+                                    <span className="run-summary-stat__label">Nopes</span>
+                                    <strong className="run-summary-stat__value">{runSummary.nopes}</strong>
+                                </article>
+                                <article className="run-summary-stat">
+                                    <span className="run-summary-stat__label">Super Likes</span>
+                                    <strong className="run-summary-stat__value">{runSummary.superLikes}</strong>
+                                </article>
+                                <article className="run-summary-stat">
+                                    <span className="run-summary-stat__label">Reverses Used</span>
+                                    <strong className="run-summary-stat__value">{runSummary.reversesUsed}</strong>
+                                </article>
+                            </div>
+
+                            {runSummary.primaryTitle && (
+                                <section className="run-primary-title" aria-label="Primary title">
+                                    <p className="run-primary-title__label">Primary badge</p>
+                                    <article
+                                        className={`run-primary-title__badge run-badge run-badge--${runSummary.primaryTitle.rarity}`}
+                                        title={runSummary.primaryTitle.description}
+                                        style={{ "--badge-hue": runSummary.primaryTitle.hue } as CSSProperties}
+                                    >
+                                        <span className="run-badge__name">{runSummary.primaryTitle.name}</span>
+                                        <span className={`run-badge__rarity run-badge__rarity--${runSummary.primaryTitle.rarity}`}>
+                                            {runSummary.primaryTitle.rarity}
+                                        </span>
+                                        {runSummary.primaryTitle.detail && (
+                                            <span className="run-badge__detail">{runSummary.primaryTitle.detail}</span>
+                                        )}
+                                        <span className="run-badge__tooltip">{runSummary.primaryTitle.description}</span>
+                                    </article>
+                                </section>
+                            )}
+
+                            <section className="run-badges" aria-label="Unlocked badges">
+                                <h2>Unlocked badges ({runSummary.badges.length + (runSummary.primaryTitle ? 1 : 0)})</h2>
+                                {runSummary.badges.length === 0 && (
+                                    <p className="run-badges__empty">No badges this time. Try a different swipe style next run.</p>
+                                )}
+                                <div className="run-badge-list">
+                                    {runSummary.badges.map((badge) => (
+                                        <article
+                                            className={`run-badge run-badge--${badge.rarity}`}
+                                            key={badge.id}
+                                            title={badge.description}
+                                            style={{ "--badge-hue": badge.hue } as CSSProperties}
+                                        >
+                                            <span className="run-badge__name">{badge.name}</span>
+                                            <span className={`run-badge__rarity run-badge__rarity--${badge.rarity}`}>{badge.rarity}</span>
+                                            {badge.detail && <span className="run-badge__detail">{badge.detail}</span>}
+                                            <span className="run-badge__tooltip">{badge.description}</span>
+                                        </article>
+                                    ))}
+                                </div>
+                            </section>
+
                             <button className="btn" onClick={reset} type="button">
-                                Start New Run
+                                New Run
                             </button>
                         </section>
                     )}
