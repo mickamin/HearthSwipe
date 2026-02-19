@@ -638,12 +638,14 @@ export default function App() {
             transition = `transform ${SWIPE_ANIMATION_MS}ms ease-in-out, opacity ${SWIPE_EXIT_FADE_MS}ms cubic-bezier(0.4, 0, 1, 1)`;
         }
 
-        return {
+        const style: CSSProperties & Record<string, string | number> = {
             zIndex: STACK_VISIBLE_CARDS - stackIndex,
             opacity: cardOpacity,
             transform: `translate(${translateX}px, ${translateY}px) rotate(${rotate}deg) scale(${baseScale})`,
             transition,
         };
+        style["--swipe-card-opacity"] = cardOpacity;
+        return style;
     };
 
     const startRun = async () => {
@@ -829,10 +831,12 @@ export default function App() {
                                         const absoluteIndex = index + stackIndex;
                                         const isTopCard = stackIndex === 0;
                                         const isTopInteractive = isTopCard && !isAnimatingSwipe && !isAnimatingReverse;
+                                        const isExitingCard = exitAnimation?.cardIndex === absoluteIndex;
+                                        const isSwipeHighlighted = (isTopCard && dragState.isActive) || isExitingCard;
                                         return (
                                             <article
                                                 key={card.id}
-                                                className={`swipe-card ${isTopCard ? "is-top" : ""} ${isTopInteractive ? "is-interactive" : ""} ${isTopCard && dragState.isActive ? "is-dragging" : ""} ${exitAnimation?.cardIndex === absoluteIndex ? "is-exiting" : ""}`}
+                                                className={`swipe-card ${isTopCard ? "is-top" : ""} ${isTopInteractive ? "is-interactive" : ""} ${isTopCard && dragState.isActive ? "is-dragging" : ""} ${isExitingCard ? "is-exiting" : ""} ${isSwipeHighlighted ? "is-highlighted" : ""}`}
                                                 style={cardStyleForStackIndex(stackIndex, absoluteIndex)}
                                                 onPointerDown={isTopInteractive ? handleCardPointerDown : undefined}
                                                 onPointerMove={isTopInteractive ? handleCardPointerMove : undefined}

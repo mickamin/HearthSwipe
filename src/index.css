@@ -15,22 +15,22 @@
 }
 
 :root {
-    --papyrus-tile-size: clamp(260px, 22vw, 420px);
     --papyrus-base: #dac59b;
     --papyrus-ink: #3f2503;
 }
 
 html, body, #root {
     height: 100%;
+    overflow: hidden;
 }
 
 body {
     margin: 0;
     background-color: var(--papyrus-base);
     background-image: url("./assets/background-papyrus-tile.png");
-    background-position: top left;
-    background-repeat: repeat;
-    background-size: var(--papyrus-tile-size) var(--papyrus-tile-size);
+    background-position: center top;
+    background-repeat: repeat-x;
+    background-size: auto 100%;
     color: var(--papyrus-ink);
     font-family: "Belwe", Georgia, serif;
     font-weight: 700;
@@ -60,10 +60,10 @@ body {
 }
 
 .logo {
-    width: min(92vw, 720px);
+    width: min(92vw, 700px);
     height: auto;
     display: block;
-    margin: 0 auto 1.25rem;
+    margin: 0 auto 0.85rem;
     filter: drop-shadow(0 10px 14px rgba(78, 45, 17, 0.35));
 }
 
@@ -76,10 +76,17 @@ body {
     display: grid;
     align-content: center;
     justify-items: center;
-    background-image: url("./assets/frame-window-outer.png"), url("./assets/background-window-red.png");
-    background-position: center, center;
-    background-repeat: no-repeat, repeat;
-    background-size: 100% 100%, 420px auto;
+    border: clamp(10px, 1.9vw, 14px) solid transparent;
+    border-image-source: url("./assets/frame-window-outer.png");
+    border-image-slice: 28;
+    border-image-width: 1;
+    border-image-repeat: stretch;
+    background-image: url("./assets/background-window-red.png");
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: 100% 100%;
+    background-origin: border-box;
+    background-clip: border-box;
     align-self: center;
     overflow: hidden;
     transition:
@@ -256,16 +263,16 @@ body {
     position: relative;
     border: 0;
     border-radius: 0;
-    width: clamp(124px, 16vw, 168px);
-    aspect-ratio: 1343 / 524;
-    padding: 0 0.9rem;
+    width: clamp(146px, 18.8vw, 204px);
+    aspect-ratio: 1222 / 465;
+    padding: 0 0.9rem 0.8rem;
     display: grid;
     place-items: center;
     font-family: "Belwe", Georgia, serif;
-    font-size: 1.06rem;
+    font-size: 1.4rem;
     font-weight: 700;
     color: #ffffff;
-    background-image: url("assets/button-black-gold.png");
+    background-image: url("./assets/button-black-gold-orange.png");
     background-repeat: no-repeat;
     background-size: 100% 100%;
     background-position: center;
@@ -297,8 +304,8 @@ body {
 }
 
 .shell-intro .btn {
-    width: clamp(132px, 17vw, 176px);
-    font-size: 1.08rem;
+    width: clamp(166px, 21.5vw, 230px);
+    font-size: 1.8rem;
     margin-top: 1rem;
     margin-bottom: 0;
 }
@@ -355,6 +362,7 @@ body {
 }
 
 .swipe-card {
+    --swipe-card-opacity: 1;
     width: 100%;
     position: absolute;
     inset: 0;
@@ -517,12 +525,13 @@ body {
     --rarity-edge-rgb: 255, 174, 88;
 }
 
-.card-art-slot:hover .card-image.is-ready {
+.card-art-slot:hover .card-image.is-ready,
+.swipe-card.is-highlighted .card-art-slot .card-image.is-ready {
     transform: scale(1.012);
     filter:
-        drop-shadow(0 0 4px rgba(var(--rarity-edge-rgb), 0.86))
-        drop-shadow(0 0 10px rgba(var(--rarity-glow-rgb), 0.54))
-        drop-shadow(0 0 16px rgba(var(--rarity-glow-rgb), 0.32));
+        drop-shadow(0 0 4px rgba(var(--rarity-edge-rgb), calc(0.86 * var(--swipe-card-opacity, 1))))
+        drop-shadow(0 0 10px rgba(var(--rarity-glow-rgb), calc(0.54 * var(--swipe-card-opacity, 1))))
+        drop-shadow(0 0 16px rgba(var(--rarity-glow-rgb), calc(0.32 * var(--swipe-card-opacity, 1))));
 }
 
 .card-art-slot.is-loading::before {
@@ -890,8 +899,8 @@ body {
     }
 
     .shell-intro .btn {
-        width: min(100%, clamp(176px, 52vw, 232px));
-        font-size: 0.96rem;
+        width: min(100%, clamp(196px, 58vw, 258px));
+        font-size: 1.14rem;
     }
 
     .intro-rules {
