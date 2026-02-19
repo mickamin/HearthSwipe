@@ -1,10 +1,13 @@
-import { type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import logo from "./assets/logo-hearthswipe.png";
 import buttonInfo from "./assets/button-info.png";
 import buttonNo from "./assets/button-no.png";
 import buttonReverse from "./assets/button-reverse.png";
 import buttonSuper from "./assets/button-super.png";
 import buttonYes from "./assets/button-yes.png";
+import overlayVoteNo from "./assets/overlay-vote-no.png";
+import overlayVoteSuper from "./assets/overlay-vote-super.png";
+import overlayVoteYes from "./assets/overlay-vote-yes.png";
 import popupChatBubble from "./assets/popup-chat-bubble.png";
 
 type Phase = "intro" | "loading" | "ready" | "error";
@@ -16,6 +19,20 @@ type RunCounters = {
     yes: number;
     no: number;
     super: number;
+};
+
+type DragState = {
+    isActive: boolean;
+    x: number;
+    y: number;
+};
+
+type ExitAnimationState = {
+    cardIndex: number;
+    action: SwipeAction;
+    x: number;
+    y: number;
+    rotate: number;
 };
 
 type HearthstoneCard = {
@@ -38,6 +55,32 @@ const RUN_SUPER_LIKE_LIMIT = 2;
 const FLAVOR_FONT_MAX_PX = 14;
 const FLAVOR_FONT_MIN_PX = 9;
 const FLAVOR_FONT_STEP_PX = 0.5;
+const STACK_VISIBLE_CARDS = 3;
+const SWIPE_COMMIT_PX = 82;
+const SWIPE_COMMIT_VELOCITY = 0.5;
+const SUPER_SWIPE_COMMIT_PX = 102;
+const SUPER_SWIPE_COMMIT_VELOCITY = 0.45;
+const SWIPE_ANIMATION_MS = 420;
+const SWIPE_INDICATOR_PREVIEW_PX = 26;
+
+function previewActionFromOffsets(x: number, y: number, canUseSuperLike: boolean): SwipeAction | null {
+    if (canUseSuperLike && y <= -58 && Math.abs(y) > Math.abs(x) * 1.08) {
+        return "super";
+    }
+    if (x >= SWIPE_INDICATOR_PREVIEW_PX && Math.abs(x) > Math.abs(y) * 1.05) {
+        return "yes";
+    }
+    if (x <= -SWIPE_INDICATOR_PREVIEW_PX && Math.abs(x) > Math.abs(y) * 1.05) {
+        return "no";
+    }
+    return null;
+}
+
+const DEFAULT_DRAG_STATE: DragState = {
+    isActive: false,
+    x: 0,
+    y: 0,
+};
 
 function createEmptyCounters(): RunCounters {
     return {
@@ -249,14 +292,36 @@ export default function App() {
     const [reversedCardIndexes, setReversedCardIndexes] = useState<Record<number, true>>({});
     const [reverseUses, setReverseUses] = useState(0);
     const [reverseCooldownUntilIndex, setReverseCooldownUntilIndex] = useState(0);
+    const [dragState, setDragState] = useState<DragState>(DEFAULT_DRAG_STATE);
+    const [exitAnimation, setExitAnimation] = useState<ExitAnimationState | null>(null);
+    const dragOriginRef = useRef<{ pointerId: number | null; x: number; y: number; startedAtMs: number }>({
+        pointerId: null,
+        x: 0,
+        y: 0,
+        startedAtMs: 0,
+    });
+    const actionTimerRef = useRef<number | null>(null);
 
     const currentCard = useMemo(() => deck[index], [deck, index]);
+    const visibleCards = useMemo(() => deck.slice(index, index + STACK_VISIBLE_CARDS), [deck, index]);
     const previousCardIndex = index - 1;
     const reversesLeft = Math.max(0, RUN_REVERSE_LIMIT - reverseUses);
     const superLikesLeft = Math.max(0, RUN_SUPER_LIKE_LIMIT - runCounters.super);
-    const canUseSuperLike = superLikesLeft > 0;
+    const canUseSuperLike = superLikesLeft > 0 && !exitAnimation;
+    const isAnimatingSwipe = Boolean(exitAnimation);
+    const dragPreviewAction = previewActionFromOffsets(dragState.x, dragState.y, canUseSuperLike);
+    const nextCardVoteIcon =
+        dragPreviewAction === "yes"
+            ? overlayVoteYes
+            : dragPreviewAction === "no"
+              ? overlayVoteNo
+              : dragPreviewAction === "super"
+                ? overlayVoteSuper
+                : null;
+    const showNextCardVoteIcon = Boolean(nextCardVoteIcon && visibleCards.length > 1 && !isAnimatingSwipe);
     const reverseInCooldown = index < reverseCooldownUntilIndex;
     const canReversePreviousCard =
+        !isAnimatingSwipe &&
         !reverseInCooldown &&
         previousCardIndex >= 0 &&
         reversesLeft > 0 &&
@@ -271,7 +336,11 @@ export default function App() {
           : previousCardIndex < 0
             ? "Swipe at least one card first"
             : "This card was already reversed";
-    const superLikeTitle = canUseSuperLike ? `Super Like (${superLikesLeft} left)` : "No super likes left";
+    const superLikeTitle = canUseSuperLike
+        ? `Super Like (${superLikesLeft} left)`
+        : isAnimatingSwipe
+          ? "Wait for current swipe"
+          : "No super likes left";
 
     const markCardLoaded = (cardId: string) => {
         setLoadedCardIds((prev) => {
@@ -308,6 +377,193 @@ export default function App() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [deck, index]);
 
+    useEffect(() => {
+        return () => {
+            if (actionTimerRef.current !== null) {
+                window.clearTimeout(actionTimerRef.current);
+            }
+        };
+    }, []);
+
+    const clearPendingAction = () => {
+        if (actionTimerRef.current !== null) {
+            window.clearTimeout(actionTimerRef.current);
+            actionTimerRef.current = null;
+        }
+        dragOriginRef.current.pointerId = null;
+        setDragState(DEFAULT_DRAG_STATE);
+        setExitAnimation(null);
+    };
+
+    const finalizeActionAtIndex = (action: SwipeAction, actionIndex: number) => {
+        setRunCounters((prev) => ({
+            ...prev,
+            [action]: prev[action] + 1,
+        }));
+        setActionsByIndex((prev) => ({
+            ...prev,
+            [actionIndex]: action,
+        }));
+        setIndex(Math.min(actionIndex + 1, deck.length));
+    };
+
+    const animateAction = (action: SwipeAction) => {
+        if (phase !== "ready" || !currentCard || isAnimatingSwipe) {
+            return;
+        }
+        if (action === "super" && !canUseSuperLike) {
+            return;
+        }
+
+        const viewportWidth = Math.max(window.innerWidth, document.body.clientWidth);
+        const viewportHeight = Math.max(window.innerHeight, document.body.clientHeight);
+        const moveOutWidth = Math.max(Math.floor(viewportWidth * 0.62), 280);
+        const moveOutHeight = Math.max(Math.floor(viewportHeight * 0.56), 280);
+
+        const activeIndex = index;
+        let x = 0;
+        let y = 0;
+        let rotate = 0;
+        if (action === "yes") {
+            x = moveOutWidth;
+            y = -72;
+            rotate = -24;
+        } else if (action === "no") {
+            x = -moveOutWidth;
+            y = -72;
+            rotate = 24;
+        } else {
+            x = Math.round(dragState.x * 0.18);
+            y = -moveOutHeight;
+            rotate = Math.round(dragState.x * 0.015);
+        }
+
+        setDragState(DEFAULT_DRAG_STATE);
+        setExitAnimation({
+            cardIndex: activeIndex,
+            action,
+            x,
+            y,
+            rotate,
+        });
+
+        if (actionTimerRef.current !== null) {
+            window.clearTimeout(actionTimerRef.current);
+        }
+        actionTimerRef.current = window.setTimeout(() => {
+            finalizeActionAtIndex(action, activeIndex);
+            setExitAnimation(null);
+            actionTimerRef.current = null;
+        }, SWIPE_ANIMATION_MS);
+    };
+
+    const handleCardPointerDown = (event: ReactPointerEvent<HTMLElement>) => {
+        if (isAnimatingSwipe || phase !== "ready") {
+            return;
+        }
+        if (event.pointerType === "mouse" && event.button !== 0) {
+            return;
+        }
+
+        dragOriginRef.current = {
+            pointerId: event.pointerId,
+            x: event.clientX,
+            y: event.clientY,
+            startedAtMs: performance.now(),
+        };
+        event.currentTarget.setPointerCapture?.(event.pointerId);
+        setDragState({
+            isActive: true,
+            x: 0,
+            y: 0,
+        });
+    };
+
+    const handleCardPointerMove = (event: ReactPointerEvent<HTMLElement>) => {
+        if (!dragState.isActive || dragOriginRef.current.pointerId !== event.pointerId) {
+            return;
+        }
+
+        setDragState({
+            isActive: true,
+            x: event.clientX - dragOriginRef.current.x,
+            y: event.clientY - dragOriginRef.current.y,
+        });
+    };
+
+    const handleCardPointerEnd = (event: ReactPointerEvent<HTMLElement>) => {
+        if (!dragState.isActive || dragOriginRef.current.pointerId !== event.pointerId) {
+            return;
+        }
+        event.currentTarget.releasePointerCapture?.(event.pointerId);
+        dragOriginRef.current.pointerId = null;
+
+        const deltaX = event.clientX - dragOriginRef.current.x;
+        const deltaY = event.clientY - dragOriginRef.current.y;
+        const elapsedMs = Math.max(performance.now() - dragOriginRef.current.startedAtMs, 1);
+        const velocityX = deltaX / elapsedMs;
+        const velocityY = deltaY / elapsedMs;
+        const dominantVerticalUp = canUseSuperLike && deltaY < 0 && Math.abs(deltaY) > Math.abs(deltaX) * 1.08;
+        if (dominantVerticalUp) {
+            const keepSuper = Math.abs(deltaY) < SUPER_SWIPE_COMMIT_PX || Math.abs(velocityY) < SUPER_SWIPE_COMMIT_VELOCITY;
+            if (!keepSuper) {
+                animateAction("super");
+                return;
+            }
+            setDragState(DEFAULT_DRAG_STATE);
+            return;
+        }
+
+        const keep = Math.abs(deltaX) < SWIPE_COMMIT_PX || Math.abs(velocityX) < SWIPE_COMMIT_VELOCITY;
+        if (!keep) {
+            animateAction(deltaX > 0 ? "yes" : "no");
+            return;
+        }
+
+        setDragState(DEFAULT_DRAG_STATE);
+    };
+
+    const handleCardPointerCancel = (event: ReactPointerEvent<HTMLElement>) => {
+        if (!dragState.isActive || dragOriginRef.current.pointerId !== event.pointerId) {
+            return;
+        }
+        event.currentTarget.releasePointerCapture?.(event.pointerId);
+        dragOriginRef.current.pointerId = null;
+        setDragState(DEFAULT_DRAG_STATE);
+    };
+
+    const cardStyleForStackIndex = (stackIndex: number, absoluteIndex: number): CSSProperties => {
+        const baseScale = (20 - stackIndex) / 20;
+        const baseTranslateY = stackIndex * -18;
+        const baseOpacity = Math.max(0, (10 - stackIndex) / 10);
+        const isTopCard = stackIndex === 0;
+        const isExiting = exitAnimation?.cardIndex === absoluteIndex;
+
+        let translateX = 0;
+        let translateY = baseTranslateY;
+        let rotate = 0;
+        let transition = "transform 320ms ease-in-out, opacity 220ms ease";
+
+        if (isTopCard && dragState.isActive) {
+            translateX = dragState.x;
+            translateY = dragState.y;
+            rotate = dragState.x * 0.045 + dragState.y * 0.01;
+            transition = "none";
+        } else if (isExiting && exitAnimation) {
+            translateX = exitAnimation.x;
+            translateY = exitAnimation.y;
+            rotate = exitAnimation.rotate;
+            transition = `transform ${SWIPE_ANIMATION_MS}ms ease-in-out, opacity 220ms ease`;
+        }
+
+        return {
+            zIndex: STACK_VISIBLE_CARDS - stackIndex,
+            opacity: isTopCard ? 1 : baseOpacity,
+            transform: `translate(${translateX}px, ${translateY}px) rotate(${rotate}deg) scale(${baseScale})`,
+            transition,
+        };
+    };
+
     const startRun = async () => {
         const startedAt = Date.now();
         setPhase("loading");
@@ -328,6 +584,7 @@ export default function App() {
             setReversedCardIndexes({});
             setReverseUses(0);
             setReverseCooldownUntilIndex(0);
+            clearPendingAction();
             runDeck.slice(0, 8).forEach((card) => preloadCard(card.id));
             setIndex(0);
             setPhase("ready");
@@ -336,30 +593,6 @@ export default function App() {
             setError(message);
             setPhase("error");
         }
-    };
-
-    const advanceCard = () => {
-        setIndex((prev) => Math.min(prev + 1, deck.length));
-    };
-
-    const applyAction = (action: SwipeAction) => {
-        if (phase !== "ready" || !currentCard) {
-            return;
-        }
-        if (action === "super" && !canUseSuperLike) {
-            return;
-        }
-
-        const activeIndex = index;
-        setRunCounters((prev) => ({
-            ...prev,
-            [action]: prev[action] + 1,
-        }));
-        setActionsByIndex((prev) => ({
-            ...prev,
-            [activeIndex]: action,
-        }));
-        advanceCard();
     };
 
     const reverseLastAction = () => {
@@ -388,6 +621,7 @@ export default function App() {
         }));
         setReverseUses((prev) => prev + 1);
         setReverseCooldownUntilIndex(index + 1);
+        clearPendingAction();
         setIndex(targetIndex);
     };
 
@@ -402,6 +636,7 @@ export default function App() {
         setReversedCardIndexes({});
         setReverseUses(0);
         setReverseCooldownUntilIndex(0);
+        clearPendingAction();
     };
 
     const isDone = phase === "ready" && index >= deck.length;
@@ -471,16 +706,38 @@ export default function App() {
                                 <p className="run-count reveal reveal-1">
                                     Card {index + 1} / {deck.length}
                                 </p>
-                                <div
-                                    className={`card-art-slot reveal reveal-2 ${rarityClassName(currentCard.rarity)} ${loadedCardIds[currentCard.id] ? "" : "is-loading"}`}
-                                >
-                                    <img
-                                        className={`card-image ${loadedCardIds[currentCard.id] ? "is-ready" : "is-pending"}`}
-                                        src={cardImageUrl(currentCard.id)}
-                                        alt={currentCard.name}
-                                        loading="lazy"
-                                        onLoad={() => markCardLoaded(currentCard.id)}
-                                    />
+                                <div className="swipe-stack reveal reveal-2">
+                                    {showNextCardVoteIcon && (
+                                        <div className="next-card-vote-overlay" aria-hidden="true">
+                                            <img src={nextCardVoteIcon ?? ""} alt="" />
+                                        </div>
+                                    )}
+                                    {visibleCards.map((card, stackIndex) => {
+                                        const absoluteIndex = index + stackIndex;
+                                        const isTopCard = stackIndex === 0;
+                                        const isTopInteractive = isTopCard && !isAnimatingSwipe;
+                                        return (
+                                            <article
+                                                key={card.id}
+                                                className={`swipe-card ${isTopCard ? "is-top" : ""} ${isTopInteractive ? "is-interactive" : ""} ${isTopCard && dragState.isActive ? "is-dragging" : ""} ${exitAnimation?.cardIndex === absoluteIndex ? "is-exiting" : ""}`}
+                                                style={cardStyleForStackIndex(stackIndex, absoluteIndex)}
+                                                onPointerDown={isTopInteractive ? handleCardPointerDown : undefined}
+                                                onPointerMove={isTopInteractive ? handleCardPointerMove : undefined}
+                                                onPointerUp={isTopInteractive ? handleCardPointerEnd : undefined}
+                                                onPointerCancel={isTopInteractive ? handleCardPointerCancel : undefined}
+                                            >
+                                                <div className={`card-art-slot ${rarityClassName(card.rarity)} ${loadedCardIds[card.id] ? "" : "is-loading"}`}>
+                                                    <img
+                                                        className={`card-image ${loadedCardIds[card.id] ? "is-ready" : "is-pending"}`}
+                                                        src={cardImageUrl(card.id)}
+                                                        alt={card.name}
+                                                        loading="lazy"
+                                                        onLoad={() => markCardLoaded(card.id)}
+                                                    />
+                                                </div>
+                                            </article>
+                                        );
+                                    })}
                                 </div>
                                 <section className="card-meta reveal reveal-3">
                                     <p className="card-artist">Artist: {currentCard.artist ?? "Unknown"}</p>
@@ -499,12 +756,18 @@ export default function App() {
                                     >
                                         <img src={buttonReverse} alt="" />
                                     </button>
-                                    <button className="action-btn action-btn--major" onClick={() => applyAction("no")} type="button" aria-label="Nope">
+                                    <button
+                                        className="action-btn action-btn--major"
+                                        onClick={() => animateAction("no")}
+                                        type="button"
+                                        aria-label="Nope"
+                                        disabled={isAnimatingSwipe}
+                                    >
                                         <img src={buttonNo} alt="" />
                                     </button>
                                     <button
                                         className="action-btn action-btn--minor"
-                                        onClick={() => applyAction("super")}
+                                        onClick={() => animateAction("super")}
                                         type="button"
                                         aria-label="Super Like"
                                         title={superLikeTitle}
@@ -512,7 +775,13 @@ export default function App() {
                                     >
                                         <img src={buttonSuper} alt="" />
                                     </button>
-                                    <button className="action-btn action-btn--major" onClick={() => applyAction("yes")} type="button" aria-label="Like">
+                                    <button
+                                        className="action-btn action-btn--major"
+                                        onClick={() => animateAction("yes")}
+                                        type="button"
+                                        aria-label="Like"
+                                        disabled={isAnimatingSwipe}
+                                    >
                                         <img src={buttonYes} alt="" />
                                     </button>
                                     <div className="info-action action-btn--minor">
