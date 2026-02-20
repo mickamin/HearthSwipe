@@ -80,25 +80,30 @@ body {
 }
 
 .game-shell {
-    width: min(100%, 500px);
+    width: 500px;
+    max-width: 100%;
     height: clamp(230px, 34vw, 280px);
     margin: 0 auto;
+    --frame-middle-top-inset: clamp(60px, 11vw, 76px);
+    --frame-middle-bottom-inset: clamp(56px, 10.2vw, 72px);
+    --frame-overlap-top: clamp(5px, 1.2vw, 7px);
+    --frame-overlap-bottom: clamp(10px, 2vw, 14px);
+    --frame-seam-feather-top: clamp(9px, 2vw, 11px);
+    --frame-seam-feather-bottom: clamp(13px, 2.8vw, 18px);
+    --frame-bottom-offset: clamp(-2px, -0.35vw, -1px);
+    --frame-window-inset-x: clamp(26px, 5.2vw, 34px);
+    --frame-window-inset-top: clamp(12px, 2.4vw, 18px);
+    --frame-window-inset-bottom: clamp(2px, 0.8vw, 7px);
+    --frame-window-radius: clamp(18px, 4.2vw, 26px);
+    --frame-top-height: clamp(110px, 31vw, 158px);
+    --frame-bottom-height: clamp(102px, 29vw, 146px);
     position: relative;
+    isolation: isolate;
     padding: clamp(2.3rem, 7vw, 3.4rem) clamp(1rem, 4.8vw, 1.8rem);
     display: grid;
     align-content: center;
     justify-items: center;
-    border: clamp(10px, 1.9vw, 14px) solid transparent;
-    border-image-source: url("./assets/frame-window-outer.png");
-    border-image-slice: 28;
-    border-image-width: 1;
-    border-image-repeat: stretch;
-    background-image: url("./assets/background-window-red.png");
-    background-position: center;
-    background-repeat: no-repeat;
-    background-size: 100% 100%;
-    background-origin: border-box;
-    background-clip: border-box;
+    background: transparent;
     align-self: center;
     overflow: hidden;
     transition:
@@ -106,19 +111,77 @@ body {
         padding 700ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
+.game-shell::before {
+    content: "";
+    position: absolute;
+    inset:
+        calc(var(--frame-middle-top-inset) - var(--frame-overlap-top))
+        0
+        calc(var(--frame-middle-bottom-inset) - var(--frame-overlap-bottom));
+    padding: var(--frame-window-inset-top) var(--frame-window-inset-x) var(--frame-window-inset-bottom);
+    border-radius: var(--frame-window-radius);
+    z-index: 0;
+    pointer-events: none;
+    background-image: url("./assets/frame-golden-middle.png"), url("./assets/background-window-red.png");
+    background-position: center, center;
+    background-repeat: no-repeat, no-repeat;
+    background-size: 100% 100%, 100% 100%;
+    background-origin: border-box, content-box;
+    background-clip: border-box, content-box;
+}
+
+.game-shell::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background-image: url("./assets/frame-golden-top.png"), url("./assets/frame-golden-bottom.png");
+    background-position: top center, center calc(100% + var(--frame-bottom-offset));
+    background-repeat: no-repeat, no-repeat;
+    background-size: 100% var(--frame-top-height), 100% var(--frame-bottom-height);
+    -webkit-mask-image: linear-gradient(
+        to bottom,
+        black 0,
+        black calc(var(--frame-top-height) - var(--frame-seam-feather-top)),
+        transparent calc(var(--frame-top-height) + var(--frame-seam-feather-top)),
+        transparent calc(100% - var(--frame-bottom-height) - var(--frame-seam-feather-bottom)),
+        black calc(100% - var(--frame-bottom-height) + var(--frame-seam-feather-bottom)),
+        black 100%
+    );
+    mask-image: linear-gradient(
+        to bottom,
+        black 0,
+        black calc(var(--frame-top-height) - var(--frame-seam-feather-top)),
+        transparent calc(var(--frame-top-height) + var(--frame-seam-feather-top)),
+        transparent calc(100% - var(--frame-bottom-height) - var(--frame-seam-feather-bottom)),
+        black calc(100% - var(--frame-bottom-height) + var(--frame-seam-feather-bottom)),
+        black 100%
+    );
+    -webkit-mask-size: 100% 100%;
+    mask-size: 100% 100%;
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+}
+
+.game-shell > * {
+    position: relative;
+    z-index: 1;
+}
+
 .shell-intro {
-    height: clamp(360px, 52vw, 460px);
-    padding: clamp(1.7rem, 4.8vw, 2.25rem) clamp(0.9rem, 4.2vw, 1.35rem) clamp(2.2rem, 5.8vw, 3rem);
+    height: clamp(470px, 64vw, 620px);
+    padding: clamp(2.45rem, 6.1vw, 3.2rem) clamp(1.12rem, 4.9vw, 1.65rem) clamp(2.25rem, 5.9vw, 3.25rem);
 }
 
 .shell-active {
-    height: clamp(620px, 72vw, 680px);
+    height: clamp(680px, 78vw, 760px);
     align-content: start;
     overflow: visible;
     padding:
-        clamp(1.05rem, 3vw, 1.45rem)
+        clamp(1.18rem, 3.2vw, 1.6rem)
         clamp(0.85rem, 3.4vw, 1.35rem)
-        clamp(0.8rem, 2.1vw, 1.2rem);
+        clamp(1.2rem, 3vw, 1.7rem);
 }
 
 .shell-complete {
@@ -126,7 +189,7 @@ body {
     align-content: start;
     overflow: visible;
     padding:
-        clamp(0.95rem, 2.8vw, 1.3rem)
+        clamp(2.7rem, 7.4vw, 3.8rem)
         clamp(0.8rem, 3.2vw, 1.25rem)
         clamp(0.75rem, 2vw, 1.1rem);
 }
@@ -148,7 +211,8 @@ body {
     flex-direction: column;
     justify-content: center;
     align-items: center;
-    gap: 0.8rem;
+    padding-top: clamp(0.9rem, 2.4vw, 1.35rem);
+    gap: 0.92rem;
 }
 
 .shell-active .panel,
@@ -164,41 +228,52 @@ body {
     overflow: visible;
     align-content: start;
     justify-items: stretch;
-    gap: 0.35rem;
-    padding: 0.1rem 0.14rem 0.45rem;
+    gap: 0.24rem;
+    padding: clamp(2.1rem, 5.6vw, 2.9rem) clamp(0.28rem, 1.2vw, 0.44rem) 0.34rem;
 }
 
 .panel--run-complete h1 {
     text-align: center;
-    margin-bottom: 0.14rem;
+    font-size: clamp(1.2rem, 2.8vw, 1.72rem);
+    margin-bottom: 0.02rem;
 }
 
 .run-summary-intro {
     margin: 0;
     text-align: center;
-    font-size: 0.86rem;
-    line-height: 1.12;
+    font-size: 0.76rem;
+    line-height: 1.1;
 }
 
 .run-summary-grid {
+    width: min(90%, 424px);
+    justify-self: center;
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 0.25rem;
+    gap: 0.14rem;
 }
 
 .run-summary-stat {
     border: 1px solid rgba(255, 229, 165, 0.24);
-    border-radius: 10px;
-    background: linear-gradient(180deg, rgba(41, 10, 10, 0.42), rgba(23, 6, 6, 0.5));
-    padding: 0.26rem 0.34rem 0.3rem;
+    border-radius: 8px;
+    background-image:
+        linear-gradient(180deg, rgba(41, 10, 10, 0.34), rgba(23, 6, 6, 0.44)),
+        url("./assets/tile-gold-red.png");
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: 100% 100%, 100% 100%;
+    padding: 0.16rem 0.2rem 0.12rem;
     display: grid;
+    justify-items: center;
+    align-content: center;
     gap: 0.08rem;
-    min-height: 56px;
+    min-height: 40px;
 }
 
 .run-summary-stat__label {
     color: #f7d89a;
-    font-size: 0.62rem;
+    font-size: 0.5rem;
+    text-align: center;
     letter-spacing: 0.02em;
     text-transform: uppercase;
     text-shadow:
@@ -214,7 +289,8 @@ body {
 
 .run-summary-stat__value {
     color: #ffffff;
-    font-size: 0.96rem;
+    font-size: 0.76rem;
+    text-align: center;
     line-height: 1.04;
     text-shadow:
         2px 0 0 #000,
@@ -228,23 +304,23 @@ body {
 }
 
 .run-badges {
-    margin-top: 0.06rem;
+    margin-top: 0.02rem;
     display: grid;
-    gap: 0.24rem;
+    gap: 0.18rem;
 }
 
 .run-primary-title {
     display: grid;
     justify-items: center;
-    gap: 0.2rem;
-    margin-top: 0.08rem;
+    gap: 0.14rem;
+    margin-top: 0.02rem;
 }
 
 .run-primary-title__label {
     margin: 0;
     color: #ffffff !important;
     -webkit-text-fill-color: #ffffff;
-    font-size: 0.78rem;
+    font-size: 0.9rem;
     text-transform: none;
     letter-spacing: 0.01em;
     text-shadow:
@@ -259,16 +335,25 @@ body {
 }
 
 .run-primary-title__badge {
-    transform: scale(1.02);
+    --badge-bg-image: url("./assets/badge-primary.png") !important;
+    width: min(64%, 328px);
+    aspect-ratio: 1393 / 395;
+    min-height: 70px;
+    padding: 0 0.95rem;
+    justify-content: center;
+    transform: scale(1);
 }
 
 .run-primary-title__badge .run-badge__name {
+    font-size: 0.96rem;
     color: #ffffff;
+    line-height: 1.02;
+    transform: translateY(1px);
 }
 
 .run-badges h2 {
     margin: 0;
-    font-size: 0.98rem;
+    font-size: 0.78rem;
     color: #fff4d4;
     text-align: center;
     text-shadow:
@@ -286,72 +371,77 @@ body {
     margin: 0;
     text-align: center;
     color: #ffe9c2;
-    font-size: 0.78rem;
+    font-size: 0.72rem;
 }
 
 .run-badge-list {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.28rem;
-    justify-content: center;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.18rem;
+    justify-items: center;
     align-content: flex-start;
 }
 
 .run-badge {
     --badge-hue: 32;
+    --badge-bg-image: url("./assets/badge-common.png");
     --rarity-glow-rgb: var(--rarity-common-glow-rgb);
     --rarity-edge-rgb: var(--rarity-common-edge-rgb);
     --badge-glow-opacity: 0.88;
     position: relative;
-    border: 1px solid rgba(var(--rarity-edge-rgb), 0.52);
+    border: 0;
     border-radius: 999px;
-    background:
-        linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0)),
-        linear-gradient(
-            165deg,
-            hsla(var(--badge-hue), 66%, 26%, 0.9),
-            hsla(calc(var(--badge-hue) + 22), 58%, 16%, 0.9)
-        );
-    padding: 0.16rem 0.5rem 0.2rem;
+    background-image: var(--badge-bg-image);
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: 100% 100%;
+    padding: 0.16rem 0.72rem 0.2rem;
+    min-height: 36px;
     display: inline-flex;
+    justify-content: center;
     align-items: center;
-    gap: 0.2rem;
+    gap: 0.18rem;
     cursor: help;
     transition: transform 110ms ease, filter 110ms ease;
-    box-shadow:
-        0 0 0 1px rgba(var(--rarity-edge-rgb), calc(0.2 * var(--badge-glow-opacity))),
-        0 0 7px rgba(var(--rarity-glow-rgb), calc(0.24 * var(--badge-glow-opacity))),
-        0 0 12px rgba(var(--rarity-glow-rgb), calc(0.16 * var(--badge-glow-opacity)));
+    box-shadow: none;
+}
+
+.run-badge-list .run-badge {
+    width: min(60%, 286px);
 }
 
 .run-badge:hover,
 .run-badge:focus-within {
     transform: translateY(-1px);
-    box-shadow:
-        0 0 0 1px rgba(var(--rarity-edge-rgb), calc(0.28 * var(--badge-glow-opacity))),
-        0 0 9px rgba(var(--rarity-glow-rgb), calc(0.32 * var(--badge-glow-opacity))),
-        0 0 14px rgba(var(--rarity-glow-rgb), calc(0.2 * var(--badge-glow-opacity)));
+    filter:
+        drop-shadow(0 0 4px rgba(var(--rarity-edge-rgb), calc(0.86 * var(--badge-glow-opacity))))
+        drop-shadow(0 0 10px rgba(var(--rarity-glow-rgb), calc(0.54 * var(--badge-glow-opacity))))
+        drop-shadow(0 0 16px rgba(var(--rarity-glow-rgb), calc(0.32 * var(--badge-glow-opacity))));
 }
 
 .run-badge--common {
+    --badge-bg-image: url("./assets/badge-common.png");
     --rarity-glow-rgb: var(--rarity-common-glow-rgb);
     --rarity-edge-rgb: var(--rarity-common-edge-rgb);
     --badge-glow-opacity: 0.88;
 }
 
 .run-badge--rare {
+    --badge-bg-image: url("./assets/badge-rare.png");
     --rarity-glow-rgb: var(--rarity-rare-glow-rgb);
     --rarity-edge-rgb: var(--rarity-rare-edge-rgb);
     --badge-glow-opacity: 1;
 }
 
 .run-badge--epic {
+    --badge-bg-image: url("./assets/badge-epic.png");
     --rarity-glow-rgb: var(--rarity-epic-glow-rgb);
     --rarity-edge-rgb: var(--rarity-epic-edge-rgb);
     --badge-glow-opacity: 1.08;
 }
 
 .run-badge--legendary {
+    --badge-bg-image: url("./assets/badge-legendary.png");
     --rarity-glow-rgb: var(--rarity-legendary-glow-rgb);
     --rarity-edge-rgb: var(--rarity-legendary-edge-rgb);
     --badge-glow-opacity: 1.16;
@@ -360,7 +450,7 @@ body {
 .run-badge__name {
     color: #fff5d8;
     font-size: 0.72rem;
-    line-height: 1.08;
+    line-height: 1.04;
     text-shadow:
         1.5px 0 0 #000,
         1.06px 1.06px 0 #000,
@@ -376,7 +466,7 @@ body {
     border: 1px solid rgba(var(--rarity-edge-rgb), 0.76);
     border-radius: 999px;
     padding: 0.08rem 0.3rem 0.1rem;
-    font-size: 0.56rem;
+    font-size: 0.6rem;
     letter-spacing: 0.03em;
     text-transform: uppercase;
     color: #fff8e5;
@@ -411,9 +501,9 @@ body {
 
 .run-badge__detail {
     color: #ffd59c;
-    font-size: 0.56rem;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
+    font-size: 0.6rem;
+    text-transform: none;
+    letter-spacing: 0.01em;
     text-shadow:
         1.3px 0 0 #000,
         0.92px 0.92px 0 #000,
@@ -430,7 +520,7 @@ body {
     left: 50%;
     bottom: calc(100% + 8px);
     transform: translate(-50%, 8px) scale(0.96);
-    width: min(220px, 42vw);
+    width: min(260px, 56vw);
     padding: 0.3rem 0.4rem 0.34rem;
     border: 1px solid rgba(255, 214, 158, 0.55);
     border-radius: 8px;
@@ -453,6 +543,20 @@ body {
     pointer-events: none;
     transition: opacity 110ms ease, transform 110ms ease, visibility 0s linear 110ms;
     z-index: 24;
+    display: grid;
+    gap: 0.08rem;
+}
+
+.run-badge__tooltip-line {
+    display: block;
+}
+
+.run-badge__tooltip-line--desc {
+    color: #fff0d5;
+}
+
+.run-badge__tooltip-line--threshold {
+    color: #ffd89f;
 }
 
 .run-badge:hover .run-badge__tooltip,
@@ -465,7 +569,9 @@ body {
 
 .panel--run-complete .btn {
     justify-self: center;
-    margin-top: 0.18rem;
+    margin-top: 0.08rem;
+    width: clamp(150px, 19vw, 188px);
+    font-size: 1.45rem;
 }
 
 .loading-panel {
@@ -508,8 +614,8 @@ body {
 }
 
 .shell-intro .panel h1 {
-    font-size: clamp(1.55rem, 3.9vw, 2.2rem);
-    line-height: 1.03;
+    font-size: clamp(1.62rem, 4vw, 2.2rem);
+    line-height: 1.04;
     margin-bottom: 0.25rem;
     white-space: normal;
     transform: none;
@@ -536,23 +642,23 @@ body {
 
 .shell-intro .panel > p.intro-subtitle {
     margin: 0;
-    max-width: 440px;
-    font-size: 0.9rem;
-    line-height: 1.18;
+    max-width: 408px;
+    font-size: 0.86rem;
+    line-height: 1.2;
     color: #fff4da;
 }
 
 .intro-rules {
-    width: min(100%, 440px);
+    width: min(100%, 414px);
     margin: 0.2rem 0 0;
     padding: 0;
     list-style: none;
     display: grid;
-    gap: 0.28rem;
+    gap: 0.24rem;
     text-align: left;
     color: #fff4e2;
-    font-size: 0.84rem;
-    line-height: 1.17;
+    font-size: 0.82rem;
+    line-height: 1.18;
     text-shadow:
         2px 0 0 #000,
         1.414px 1.414px 0 #000,
@@ -571,7 +677,7 @@ body {
 .intro-rule-line {
     display: inline-flex;
     align-items: center;
-    gap: 0.36rem;
+    gap: 0.3rem;
 }
 
 .intro-rule-icon {
@@ -638,21 +744,23 @@ body {
 }
 
 .shell-intro .btn {
-    width: clamp(166px, 21.5vw, 230px);
-    font-size: 1.8rem;
-    margin-top: 1rem;
+    width: clamp(188px, 24.2vw, 258px);
+    font-size: 1.72rem;
+    margin-top: 1.2rem;
     margin-bottom: 0;
 }
 
 .card-panel {
+    --edge-frame-gap: clamp(1.02rem, 2.8vw, 1.34rem);
     width: 100%;
     position: relative;
     height: 100%;
     min-height: 0;
-    display: grid;
-    grid-template-rows: minmax(0, 1fr) auto;
-    align-content: stretch;
-    row-gap: 0.35rem;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    padding-top: var(--edge-frame-gap);
+    row-gap: 0;
     overflow: visible;
 }
 
@@ -661,19 +769,21 @@ body {
     display: grid;
     justify-items: center;
     align-content: start;
-    min-height: 0;
+    min-height: auto;
     height: auto;
-    padding: 0.3rem 0.35rem 0;
+    margin-top: 0;
+    margin-bottom: clamp(0.2rem, 0.8vw, 0.32rem);
+    padding: 0 clamp(0.2rem, 0.8vw, 0.32rem) 0;
     overflow: visible;
-    grid-template-rows: auto minmax(0, 1fr);
-    row-gap: 0.28rem;
+    grid-template-rows: auto auto auto;
+    row-gap: clamp(0.14rem, 0.6vw, 0.24rem);
 }
 
 .card-content .run-count {
     font-size: 1.15rem;
     line-height: 1.08;
     color: #ffffff;
-    margin-bottom: 0.24rem;
+    margin-bottom: clamp(0.08rem, 0.45vw, 0.18rem);
     text-shadow:
         2px 0 0 #000,
         1.414px 1.414px 0 #000,
@@ -687,11 +797,14 @@ body {
 
 .swipe-stack {
     width: min(100%, 340px);
-    height: 504px;
+    height: 392px;
     position: relative;
+    top: clamp(48px, 8vw, 62px);
     display: grid;
-    align-content: start;
+    align-content: end;
     justify-items: center;
+    align-self: center;
+    margin-top: 0;
     overflow: visible;
 }
 
@@ -883,15 +996,16 @@ body {
     grid-template-rows: auto 1fr;
     align-content: stretch;
     justify-items: center;
-    gap: 0.34rem;
-    margin: 0.1rem 0.25rem 0;
-    padding-top: 0;
+    gap: 0.3rem;
+    margin: clamp(0.02rem, 0.2vw, 0.1rem) 0.25rem 0;
+    padding-top: 0.04rem;
     width: min(100%, 340px);
     height: 108px;
     max-height: none;
     min-height: 0;
     overflow: visible;
     text-align: center;
+    align-self: end;
 }
 
 .panel .card-meta p {
@@ -943,7 +1057,8 @@ body {
     overflow-wrap: anywhere;
     white-space: normal;
     opacity: 1;
-    padding: 0;
+    box-sizing: border-box;
+    padding: 0 0.14rem;
     text-align: center;
     text-shadow:
         2px 0 0 #000,
@@ -967,12 +1082,12 @@ body {
     display: grid;
     justify-items: center;
     row-gap: 0;
-    margin-top: 0;
     min-height: 0;
     padding-top: 0;
-    padding-bottom: 0.45rem;
+    margin-top: auto;
+    padding-bottom: var(--edge-frame-gap);
     transform: none;
-    align-self: end;
+    align-self: stretch;
 }
 
 .card-actions {
@@ -1218,50 +1333,77 @@ body {
 }
 
 @media (max-width: 720px) {
+    html,
+    body,
+    #root {
+        height: auto;
+        min-height: 100%;
+    }
+
+    body,
+    #root {
+        overflow-x: hidden;
+        overflow-y: auto;
+    }
+
+    .app {
+        min-height: 100dvh;
+        padding: 0.95rem 0.85rem 1.2rem;
+    }
+
+    .hero {
+        min-height: auto;
+    }
+
+    .logo {
+        width: min(78vw, 520px);
+        margin-bottom: 0.6rem;
+    }
+
     .game-shell {
         width: min(100%, 500px);
     }
 
     .shell-intro {
-        height: clamp(360px, 88vw, 500px);
-        padding: 1.5rem 1rem 2.1rem;
+        height: clamp(470px, 106vw, 650px);
+        padding: 2.1rem 1.16rem 2.22rem;
     }
 
     .shell-intro .panel h1 {
-        font-size: clamp(1.35rem, 6.4vw, 1.8rem);
+        font-size: clamp(1.4rem, 6.2vw, 1.88rem);
         white-space: normal;
     }
 
     .shell-intro .btn {
-        width: min(100%, clamp(196px, 58vw, 258px));
+        width: min(100%, clamp(224px, 66vw, 300px));
         font-size: 1.14rem;
     }
 
     .intro-rules {
-        width: min(100%, 320px);
-        font-size: 0.77rem;
-        line-height: 1.16;
-        gap: 0.22rem;
+        width: min(100%, 324px);
+        font-size: 0.76rem;
+        line-height: 1.18;
+        gap: 0.29rem;
     }
 
     .intro-rule-icon {
-        width: 15px;
-        height: 15px;
+        width: 17px;
+        height: 17px;
     }
 
     .intro-rule-icon--major {
-        width: 18px;
-        height: 18px;
+        width: 21px;
+        height: 21px;
     }
 
     .shell-active {
-        height: 590px;
-        padding: 0.95rem 0.72rem 0.65rem;
+        height: 660px;
+        padding: 1.08rem 0.72rem 0.95rem;
     }
 
     .shell-complete {
         height: 640px;
-        padding: 0.85rem 0.64rem 0.56rem;
+        padding: 2.45rem 0.64rem 0.56rem;
     }
 
     .shell-active .panel,
@@ -1271,47 +1413,66 @@ body {
     }
 
     .shell-active .panel.card-panel {
-        row-gap: 0.2rem;
+        row-gap: 0;
+    }
+
+    .card-panel {
+        --edge-frame-gap: 0.72rem;
     }
 
     .panel--run-complete {
-        padding: 0.16rem 0.05rem 0.45rem;
-        gap: 0.24rem;
-    }
-
-    .run-summary-grid {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+        padding: 1.85rem 0.08rem 0.34rem;
         gap: 0.2rem;
     }
 
+    .run-summary-grid {
+        width: min(90%, 396px);
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.14rem;
+    }
+
     .run-summary-stat {
-        min-height: 52px;
-        padding: 0.22rem 0.3rem 0.26rem;
+        min-height: 40px;
+        padding: 0.16rem 0.18rem 0.12rem;
     }
 
     .run-summary-stat__label {
-        font-size: 0.56rem;
+        font-size: 0.47rem;
     }
 
     .run-summary-stat__value {
-        font-size: 0.86rem;
+        font-size: 0.72rem;
     }
 
     .run-badges h2 {
-        font-size: 0.86rem;
+        font-size: 0.66rem;
     }
 
     .run-primary-title__label {
-        font-size: 0.58rem;
+        font-size: 0.78rem;
     }
 
     .run-primary-title__badge {
+        width: min(72%, 286px);
+        aspect-ratio: 1393 / 395;
+        min-height: 62px;
+        padding: 0 0.74rem;
         transform: scale(1);
     }
 
+    .run-primary-title__badge .run-badge__name {
+        font-size: 0.95rem;
+        transform: translateY(1px);
+    }
+
     .run-badge {
-        padding: 0.14rem 0.4rem 0.17rem;
+        padding: 0.14rem 0.56rem 0.18rem;
         gap: 0.16rem;
+        min-height: 32px;
+    }
+
+    .run-badge-list .run-badge {
+        width: min(68%, 236px);
     }
 
     .run-badge__name {
@@ -1320,7 +1481,7 @@ body {
 
     .run-badge__rarity {
         font-size: 0.5rem;
-        padding: 0.07rem 0.24rem 0.08rem;
+        padding: 0.06rem 0.2rem 0.07rem;
     }
 
     .run-badge__category {
@@ -1328,12 +1489,18 @@ body {
     }
 
     .run-badge__detail {
-        font-size: 0.49rem;
+        font-size: 0.48rem;
     }
 
     .run-badge__tooltip {
-        width: min(200px, 62vw);
+        width: min(230px, 72vw);
         font-size: 0.58rem;
+    }
+
+    .panel--run-complete .btn {
+        width: clamp(154px, 48vw, 202px);
+        font-size: clamp(0.98rem, 4vw, 1.14rem);
+        padding-bottom: 0.68rem;
     }
 
     .card-art-slot {
@@ -1348,7 +1515,8 @@ body {
 
     .swipe-stack {
         width: min(100%, 294px);
-        height: 430px;
+        height: 334px;
+        margin-top: 0;
     }
 
     .next-card-vote-overlay {
@@ -1411,13 +1579,15 @@ body {
 
     .card-footer {
         padding-top: 0;
-        padding-bottom: 0.35rem;
+        padding-bottom: var(--edge-frame-gap);
     }
 
     .card-meta {
         width: min(100%, 294px);
         height: 94px;
         gap: 0.26rem;
+        margin-top: 0;
+        padding-top: 0;
     }
 
     .card-flavor-box {

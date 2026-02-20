@@ -656,6 +656,25 @@ function renderFlavorText(flavor?: string): ReactNode {
     return parts.length > 0 ? parts : fallback || "No flavor text.";
 }
 
+function renderBadgeTooltipContent(badge: BadgeAward): ReactNode {
+    const rarityText = `${badge.rarity.charAt(0).toUpperCase()}${badge.rarity.slice(1)}`;
+    const thresholdText =
+        badge.explain.threshold.length > 0
+            ? `${badge.explain.threshold.charAt(0).toUpperCase()}${badge.explain.threshold.slice(1)}`
+            : badge.explain.threshold;
+    return (
+        <>
+            <span className="run-badge__tooltip-line run-badge__tooltip-line--desc">{badge.description}</span>
+            {badge.detail && <span className="run-badge__tooltip-line">Detail: {badge.detail}</span>}
+            <span className="run-badge__tooltip-line">Seen: {badge.explain.seen}</span>
+            <span className="run-badge__tooltip-line">Liked: {badge.explain.liked}</span>
+            <span className="run-badge__tooltip-line">Ratio: {formatPercent(badge.explain.ratio)}</span>
+            <span className="run-badge__tooltip-line run-badge__tooltip-line--threshold">Threshold: {thresholdText}</span>
+            <span className="run-badge__tooltip-line">Rarity: {rarityText}</span>
+        </>
+    );
+}
+
 function FlavorTextBox({ flavor }: { flavor?: string }) {
     const textRef = useRef<HTMLParagraphElement | null>(null);
 
@@ -1190,9 +1209,6 @@ export default function App() {
                     {phase === "ready" && currentCard && (
                         <section className="panel card-panel">
                             <div className="card-content">
-                                <p className="run-count reveal reveal-1">
-                                    Card {index + 1} / {deck.length}
-                                </p>
                                 <div className="swipe-stack reveal reveal-2">
                                     {showNextCardVoteIcon && (
                                         <div className="next-card-vote-overlay" aria-hidden="true">
@@ -1238,6 +1254,9 @@ export default function App() {
                                         );
                                     })}
                                 </div>
+                                <p className="run-count reveal reveal-1">
+                                    {index + 1} / {deck.length}
+                                </p>
                                 <section className="card-meta reveal reveal-3">
                                     <p className="card-artist">Artist: {currentCard.artist ?? "Unknown"}</p>
                                     <FlavorTextBox flavor={currentCard.flavor} />
@@ -1306,18 +1325,16 @@ export default function App() {
 
                             <div className="run-summary-grid">
                                 <article className="run-summary-stat">
+                                    <span className="run-summary-stat__label">Reverses Used</span>
+                                    <strong className="run-summary-stat__value">{runSummary.reversesUsed}</strong>
+                                </article>
+                                <article className="run-summary-stat">
                                     <span className="run-summary-stat__label">Like Rate</span>
                                     <strong className="run-summary-stat__value">{formatPercent(runSummary.likeRatio)}</strong>
                                 </article>
                                 <article className="run-summary-stat">
                                     <span className="run-summary-stat__label">Avg Liked Mana</span>
-                                    <strong className="run-summary-stat__value">
-                                        {runSummary.avgMana === null ? "n/a" : runSummary.avgMana.toFixed(1)}
-                                    </strong>
-                                </article>
-                                <article className="run-summary-stat">
-                                    <span className="run-summary-stat__label">Likes</span>
-                                    <strong className="run-summary-stat__value">{runSummary.likes}</strong>
+                                    <strong className="run-summary-stat__value">{runSummary.avgMana === null ? "n/a" : runSummary.avgMana.toFixed(1)}</strong>
                                 </article>
                                 <article className="run-summary-stat">
                                     <span className="run-summary-stat__label">Nopes</span>
@@ -1328,27 +1345,21 @@ export default function App() {
                                     <strong className="run-summary-stat__value">{runSummary.superLikes}</strong>
                                 </article>
                                 <article className="run-summary-stat">
-                                    <span className="run-summary-stat__label">Reverses Used</span>
-                                    <strong className="run-summary-stat__value">{runSummary.reversesUsed}</strong>
+                                    <span className="run-summary-stat__label">Likes</span>
+                                    <strong className="run-summary-stat__value">{runSummary.likes}</strong>
                                 </article>
                             </div>
 
                             {runSummary.primaryTitle && (
-                                <section className="run-primary-title" aria-label="Primary title">
+                                <section className="run-primary-title" aria-label="Primary badge">
                                     <p className="run-primary-title__label">Primary badge</p>
                                     <article
                                         className={`run-primary-title__badge run-badge run-badge--${runSummary.primaryTitle.rarity}`}
-                                        title={runSummary.primaryTitle.description}
                                         style={{ "--badge-hue": runSummary.primaryTitle.hue } as CSSProperties}
+                                        tabIndex={0}
                                     >
                                         <span className="run-badge__name">{runSummary.primaryTitle.name}</span>
-                                        <span className={`run-badge__rarity run-badge__rarity--${runSummary.primaryTitle.rarity}`}>
-                                            {runSummary.primaryTitle.rarity}
-                                        </span>
-                                        {runSummary.primaryTitle.detail && (
-                                            <span className="run-badge__detail">{runSummary.primaryTitle.detail}</span>
-                                        )}
-                                        <span className="run-badge__tooltip">{runSummary.primaryTitle.description}</span>
+                                        <span className="run-badge__tooltip">{renderBadgeTooltipContent(runSummary.primaryTitle)}</span>
                                     </article>
                                 </section>
                             )}
@@ -1363,13 +1374,11 @@ export default function App() {
                                         <article
                                             className={`run-badge run-badge--${badge.rarity}`}
                                             key={badge.id}
-                                            title={badge.description}
                                             style={{ "--badge-hue": badge.hue } as CSSProperties}
+                                            tabIndex={0}
                                         >
                                             <span className="run-badge__name">{badge.name}</span>
-                                            <span className={`run-badge__rarity run-badge__rarity--${badge.rarity}`}>{badge.rarity}</span>
-                                            {badge.detail && <span className="run-badge__detail">{badge.detail}</span>}
-                                            <span className="run-badge__tooltip">{badge.description}</span>
+                                            <span className="run-badge__tooltip">{renderBadgeTooltipContent(badge)}</span>
                                         </article>
                                     ))}
                                 </div>

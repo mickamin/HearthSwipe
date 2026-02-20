@@ -21,6 +21,13 @@ export type BadgeCategory =
 
 export type BadgeRarity = "common" | "rare" | "epic" | "legendary";
 
+export type BadgeExplainability = {
+    seen: number;
+    liked: number;
+    ratio: number;
+    threshold: string;
+};
+
 export type BadgeAward = {
     id: string;
     name: string;
@@ -29,6 +36,7 @@ export type BadgeAward = {
     rarity: BadgeRarity;
     hue: number;
     detail?: string;
+    explain: BadgeExplainability;
 };
 
 export type RunStats = {
@@ -61,7 +69,7 @@ export type BadgeComputationResult = {
     badges: BadgeAward[];
 };
 
-type BadgeMeta = Omit<BadgeAward, "id" | "hue" | "detail">;
+type BadgeMeta = Omit<BadgeAward, "id" | "hue" | "detail" | "explain">;
 
 const BADGE_META: Record<string, BadgeMeta> = {
     "hopeless-romantic": {
@@ -631,6 +639,214 @@ const BADGE_RARITY_WEIGHT: Record<BadgeRarity, number> = {
     legendary: 4,
 };
 
+type BreakdownDimension = "type" | "rarity" | "class" | "race" | "keyword" | "set";
+
+type ExplainContext = {
+    dimension: BreakdownDimension;
+    key: string;
+    threshold: string;
+};
+
+const BADGE_EXPLAIN_CONTEXT: Record<string, ExplainContext> = {
+    "spell-enthusiast": { dimension: "type", key: "SPELL", threshold: "ratio >= 65% (min seen 5)" },
+    "board-builder": { dimension: "type", key: "MINION", threshold: "ratio >= 65% (min seen 5)" },
+    "weapon-wielder": { dimension: "type", key: "WEAPON", threshold: "ratio >= 70% (min seen 3)" },
+    "hero-admirer": { dimension: "type", key: "HERO", threshold: "ratio >= 80% (min seen 2)" },
+    "legendary-snob": { dimension: "rarity", key: "LEGENDARY", threshold: "ratio >= 80% (min seen 2)" },
+    "epic-seeker": { dimension: "rarity", key: "EPIC", threshold: "ratio >= 70% (min seen 2)" },
+    "rare-enthusiast": { dimension: "rarity", key: "RARE", threshold: "ratio >= 70% (min seen 3)" },
+    "budget-connoisseur": { dimension: "rarity", key: "COMMON", threshold: "ratio >= 75% (min seen 5)" },
+    "shiny-skeptic": { dimension: "rarity", key: "LEGENDARY", threshold: "liked = 0 (min seen 2)" },
+    "neutral-strategist": { dimension: "class", key: "NEUTRAL", threshold: "ratio >= 60% (min seen 5)" },
+    "dragon-devotee": { dimension: "race", key: "DRAGON", threshold: "ratio >= 70% (min seen 3)" },
+    "mech-mechanic": { dimension: "race", key: "MECHANICAL", threshold: "ratio >= 70% (min seen 3)" },
+    "murloc-maniac": { dimension: "race", key: "MURLOC", threshold: "ratio >= 70% (min seen 3)" },
+    "demon-dealer": { dimension: "race", key: "DEMON", threshold: "ratio >= 70% (min seen 3)" },
+    "beast-master": { dimension: "race", key: "BEAST", threshold: "ratio >= 70% (min seen 3)" },
+    "elemental-evoker": { dimension: "race", key: "ELEMENTAL", threshold: "ratio >= 70% (min seen 3)" },
+    "battlecry-believer": { dimension: "keyword", key: "BATTLECRY", threshold: "ratio >= 70% (min seen 4)" },
+    "deathrattle-devotee": { dimension: "keyword", key: "DEATHRATTLE", threshold: "ratio >= 70% (min seen 4)" },
+    "discover-addict": { dimension: "keyword", key: "DISCOVER", threshold: "ratio >= 75% (min seen 3)" },
+    "divine-defender": { dimension: "keyword", key: "DIVINE_SHIELD", threshold: "ratio >= 70% (min seen 3)" },
+    "frost-architect": { dimension: "keyword", key: "FREEZE", threshold: "ratio >= 70% (min seen 3)" },
+    "life-leech": { dimension: "keyword", key: "LIFESTEAL", threshold: "ratio >= 70% (min seen 3)" },
+    "poison-master": { dimension: "keyword", key: "POISONOUS", threshold: "ratio >= 70% (min seen 3)" },
+    "reborn-ritualist": { dimension: "keyword", key: "REBORN", threshold: "ratio >= 70% (min seen 3)" },
+    "rush-commander": { dimension: "keyword", key: "RUSH", threshold: "ratio >= 70% (min seen 3)" },
+    "secret-keeper": { dimension: "keyword", key: "SECRET", threshold: "ratio >= 70% (min seen 3)" },
+    "silence-enthusiast": { dimension: "keyword", key: "SILENCE", threshold: "ratio >= 75% (min seen 2)" },
+    "shadow-operative": { dimension: "keyword", key: "STEALTH", threshold: "ratio >= 70% (min seen 3)" },
+    "fortress-builder": { dimension: "keyword", key: "TAUNT", threshold: "ratio >= 70% (min seen 4)" },
+    "trade-negotiator": { dimension: "keyword", key: "TRADEABLE", threshold: "ratio >= 75% (min seen 2)" },
+    "windfury-zealot": { dimension: "keyword", key: "WINDFURY", threshold: "ratio >= 80% (min seen 2)" },
+    "druid-of-choice": { dimension: "keyword", key: "CHOOSE_ONE", threshold: "ratio >= 75% (min seen 3)" },
+    "combo-artist": { dimension: "keyword", key: "COMBO", threshold: "ratio >= 75% (min seen 3)" },
+    "outcast-specialist": { dimension: "keyword", key: "OUTCAST", threshold: "ratio >= 80% (min seen 2)" },
+    "overheal-visionary": { dimension: "keyword", key: "OVERHEAL", threshold: "ratio >= 75% (min seen 2)" },
+    "overload-enthusiast": { dimension: "keyword", key: "OVERLOAD", threshold: "ratio >= 70% (min seen 3)" },
+    "adapt-architect": { dimension: "keyword", key: "ADAPT", threshold: "ratio >= 80% (min seen 2)" },
+    "colossal-commander": { dimension: "keyword", key: "COLOSSAL", threshold: "ratio = 100% (min seen 2)" },
+    "corruption-connoisseur": { dimension: "keyword", key: "CORRUPT", threshold: "ratio >= 75% (min seen 2)" },
+    "dredge-diver": { dimension: "keyword", key: "DREDGE", threshold: "ratio >= 75% (min seen 2)" },
+    "echo-enthusiast": { dimension: "keyword", key: "ECHO", threshold: "ratio >= 75% (min seen 2)" },
+    "frenzy-fanatic": { dimension: "keyword", key: "FRENZY", threshold: "ratio >= 75% (min seen 2)" },
+    "honorable-duelist": { dimension: "keyword", key: "HONORABLE_KILL", threshold: "ratio >= 75% (min seen 2)" },
+    "infusion-master": { dimension: "keyword", key: "INFUSE", threshold: "ratio >= 75% (min seen 2)" },
+    "inspire-enthusiast": { dimension: "keyword", key: "INSPIRE", threshold: "ratio >= 75% (min seen 2)" },
+    "magnetic-engineer": { dimension: "keyword", key: "MAGNETIC", threshold: "ratio >= 75% (min seen 2)" },
+    "quest-seeker": { dimension: "keyword", key: "QUEST", threshold: "ratio = 100% (min seen 2)" },
+    "spellburst-savant": { dimension: "keyword", key: "SPELLBURST", threshold: "ratio >= 75% (min seen 2)" },
+    "titan-architect": { dimension: "keyword", key: "TITAN", threshold: "ratio = 100% (min seen 2)" },
+    "twinspell-tactician": { dimension: "keyword", key: "TWINSPELL", threshold: "ratio >= 75% (min seen 2)" },
+    "classic-collector": { dimension: "set", key: "CORE", threshold: "liked >= 4" },
+    "vanilla-veteran": { dimension: "set", key: "EXPERT1", threshold: "liked >= 4" },
+};
+
+function breakdownForDimension(stats: RunStats, dimension: BreakdownDimension): KeyBreakdownMap {
+    switch (dimension) {
+        case "type":
+            return stats.byType;
+        case "rarity":
+            return stats.byRarity;
+        case "class":
+            return stats.byClass;
+        case "race":
+            return stats.byRace;
+        case "keyword":
+            return stats.byMechanic;
+        case "set":
+            return stats.bySet;
+    }
+}
+
+function normalizeExplainToken(token: string): string {
+    return token
+        .trim()
+        .replace(/\s+/g, "_")
+        .replace(/-/g, "_")
+        .toUpperCase();
+}
+
+function explainFromBreakdown(stats: RunStats, context: ExplainContext): BadgeExplainability {
+    const map = breakdownForDimension(stats, context.dimension);
+    const seen = seenCount(map, context.key);
+    const liked = likedCount(map, context.key);
+    const ratio = seen > 0 ? liked / seen : 0;
+    return {
+        seen,
+        liked,
+        ratio,
+        threshold: context.threshold,
+    };
+}
+
+function globalExplain(stats: RunStats, threshold: string, seen = stats.totalCards, liked = stats.likes): BadgeExplainability {
+    return {
+        seen,
+        liked,
+        ratio: seen > 0 ? liked / seen : 0,
+        threshold,
+    };
+}
+
+function contextFromDetail(detail?: string): ExplainContext | null {
+    if (!detail || !detail.includes(":")) {
+        return null;
+    }
+    const [rawPrefix, ...rest] = detail.split(":");
+    const prefix = rawPrefix.trim().toLowerCase();
+    const value = rest.join(":").trim();
+    if (!prefix || !value) {
+        return null;
+    }
+    const key = normalizeExplainToken(value);
+    if (prefix === "type") {
+        return { dimension: "type", key, threshold: "context-specific trigger" };
+    }
+    if (prefix === "rarity") {
+        return { dimension: "rarity", key, threshold: "context-specific trigger" };
+    }
+    if (prefix === "class") {
+        return { dimension: "class", key, threshold: "context-specific trigger" };
+    }
+    if (prefix === "race" || prefix === "tribe") {
+        return { dimension: "race", key, threshold: "context-specific trigger" };
+    }
+    if (prefix === "keyword") {
+        return { dimension: "keyword", key, threshold: "context-specific trigger" };
+    }
+    if (prefix === "set") {
+        return { dimension: "set", key, threshold: "context-specific trigger" };
+    }
+    return null;
+}
+
+function deriveBadgeExplainability(stats: RunStats, id: string, detail?: string): BadgeExplainability {
+    const direct = BADGE_EXPLAIN_CONTEXT[id];
+    if (direct) {
+        return explainFromBreakdown(stats, direct);
+    }
+
+    const detailContext = contextFromDetail(detail);
+    if (detailContext) {
+        const threshold = id.startsWith("preference-spike-")
+            ? "ratio >= 80% and at least +25pp above run like rate"
+            : id.startsWith("most-loved-")
+              ? "highest ratio among exposed tokens"
+              : id === "expansion-loyalist"
+                ? "share of likes >= 60% (min seen 5)"
+                : id === "perfect-read"
+                  ? "ratio = 100% (min seen 5)"
+                  : id.startsWith("true-loyalist-")
+                    ? "share of likes >= 50% (min seen 5)"
+                    : detailContext.threshold;
+        return explainFromBreakdown(stats, { ...detailContext, threshold });
+    }
+
+    if (id === "hopeless-romantic") return globalExplain(stats, "like ratio >= 85%");
+    if (id === "cold-blooded-judge") return globalExplain(stats, "like ratio <= 25%");
+    if (id === "balanced-mind") return globalExplain(stats, "like ratio between 45% and 55%");
+    if (id === "super-like-sniper") return globalExplain(stats, "super likes = 2");
+    if (id === "emotionally-reserved") return globalExplain(stats, "super likes = 0");
+    if (id === "selective-critic") return globalExplain(stats, "likes <= 8 and super likes = 2");
+    if (id === "merciful-swiper") return globalExplain(stats, "likes >= 24");
+    if (id === "harsh-critic") return globalExplain(stats, "likes <= 6");
+    if (id === "efficient-evaluator") return globalExplain(stats, "likes between 12 and 18");
+    if (id === "one-take-wonder") return globalExplain(stats, "reverses used = 0");
+    if (id === "mana-minimalist") return globalExplain(stats, "avg liked mana <= 2 (min likes 6)");
+    if (id === "aggro-gremlin")
+        return globalExplain(stats, "liked cards with cost <=2 ratio >= 70%", stats.likes, stats.likedLowCost);
+    if (id === "midrange-architect") return globalExplain(stats, "avg liked mana between 3 and 5 (min likes 6)");
+    if (id === "late-game-overlord") return globalExplain(stats, "avg liked mana >= 6 (min likes 6)");
+    if (id === "greed-master")
+        return globalExplain(stats, "liked cards with cost >=7 ratio >= 60%", stats.likes, stats.likedHighCost);
+    if (id === "even-disciple") return globalExplain(stats, "all liked cards have even cost");
+    if (id === "oddball-strategist") return globalExplain(stats, "all liked cards have odd cost");
+    if (id === "zero-cost-addict")
+        return globalExplain(stats, "all seen 0-cost cards were liked (min seen 2)", stats.seenZeroCost, stats.likedZeroCost);
+    if (id === "mixed-strategist") return globalExplain(stats, "spell and minion ratios both between 40% and 60%");
+    if (id === "rarity-agnostic") return globalExplain(stats, "represented rarity ratios stay between 30% and 50%");
+    if (id === "dual-class-specialist") return globalExplain(stats, "top two classes each >= 35% of likes");
+    if (id === "class-tourist") return globalExplain(stats, "no single class reached 35% of likes");
+    if (id === "tribe-agnostic") return globalExplain(stats, "no heavily favored tribe");
+    if (id === "power-hungry") return globalExplain(stats, "avg liked minion attack >= 6 (min 4 minions)");
+    if (id === "defensive-architect") return globalExplain(stats, "avg liked minion health >= 7 (min 4 minions)");
+    if (id === "glass-cannon-lover") return globalExplain(stats, "avg attack >= 6 and avg health <= 3");
+    if (id === "tank-enthusiast") return globalExplain(stats, "avg health >= 7 and avg attack <= 3");
+    if (id === "control-enthusiast") return globalExplain(stats, "TAUNT + FREEZE + LIFESTEAL ratios >= 60%");
+    if (id === "aggro-instinct") return globalExplain(stats, "RUSH + CHARGE ratios >= 70% and avg mana <= 3");
+    if (id === "value-engineer") return globalExplain(stats, "DISCOVER + BATTLECRY ratios >= 60%");
+    if (id === "death-engine") return globalExplain(stats, "DEATHRATTLE + REBORN ratios >= 60%");
+    if (id === "secret-architect") return globalExplain(stats, "SECRET ratio >= 70% and avg mana <= 4");
+    if (id === "burn-specialist") return globalExplain(stats, "SPELL ratio >= 65% and avg mana <= 3");
+    if (id === "casino-player") return globalExplain(stats, "LEGENDARY ratio >= 60% and avg mana >= 6");
+    if (id === "contrarian") return globalExplain(stats, "found exposed patterns with low like rates");
+    if (id === "perfect-read") return globalExplain(stats, "100% likes on a strongly represented pattern");
+    if (id === "coinflip") return globalExplain(stats, "like ratio between 48% and 52% with <=1 super like");
+
+    return globalExplain(stats, "rule matched");
+}
+
 function seenCount(stats: KeyBreakdownMap, key: string): number {
     return stats[key]?.seen ?? 0;
 }
@@ -736,10 +952,11 @@ function strongestToken(stats: KeyBreakdownMap, minSeen: number): { key: string;
 }
 
 function tokenDimensionLabel(prefix: string, key: string): string {
-    return `${prefix.toLowerCase()}: ${prettyToken(key).toLowerCase()}`;
+    const normalizedPrefix = prefix.trim().replace(/\s+/g, "_");
+    return `${prettyToken(normalizedPrefix)}: ${prettyToken(key)}`;
 }
 
-function selectShowcase(candidates: BadgeCandidate[]): BadgeComputationResult {
+function selectShowcase(candidates: BadgeCandidate[], stats: RunStats): BadgeComputationResult {
     const selected: BadgeCandidate[] = [];
     const categoryCounts: Partial<Record<BadgeCategory, number>> = {};
 
@@ -772,13 +989,27 @@ function selectShowcase(candidates: BadgeCandidate[]): BadgeComputationResult {
             id: fallbackId,
             ...meta,
             hue: badgeHueFromId(fallbackId),
+            explain: deriveBadgeExplainability(stats, fallbackId),
             score: 40,
         });
     }
 
     const sortedByScore = sortCandidates(selected);
-    const primaryPool = sortedByScore.filter((badge) => badge.category !== "Fallback");
-    const titleCandidates = primaryPool.length > 0 ? primaryPool : sortedByScore;
+    const nonFallback = sortedByScore.filter((badge) => badge.category !== "Fallback");
+    const nonMetaNonFallback = nonFallback.filter((badge) => badge.category !== "Meta");
+    const strongNonMeta = nonMetaNonFallback.filter((badge) => badge.score >= 88);
+    const strongNonFallback = nonFallback.filter((badge) => badge.score >= 88);
+
+    const titleCandidates =
+        strongNonMeta.length > 0
+            ? strongNonMeta
+            : nonMetaNonFallback.length > 0
+              ? nonMetaNonFallback
+              : strongNonFallback.length > 0
+                ? strongNonFallback
+                : nonFallback.length > 0
+                  ? nonFallback
+                  : sortedByScore;
     const primaryCandidate = [...titleCandidates].sort((a, b) => {
         const rarityDelta = BADGE_RARITY_WEIGHT[b.rarity] - BADGE_RARITY_WEIGHT[a.rarity];
         if (rarityDelta !== 0) {
@@ -811,7 +1042,7 @@ function selectShowcase(candidates: BadgeCandidate[]): BadgeComputationResult {
 export function computeRunBadges(stats: RunStats): BadgeComputationResult {
     const candidateMap = new Map<string, BadgeCandidate>();
 
-    const addBadgeById = (id: string, score: number, detail?: string) => {
+    const addBadgeById = (id: string, score: number, detail?: string, explain?: BadgeExplainability) => {
         const meta = BADGE_META[id];
         if (!meta) {
             return;
@@ -825,11 +1056,12 @@ export function computeRunBadges(stats: RunStats): BadgeComputationResult {
             ...meta,
             hue: badgeHueFromId(id),
             detail,
+            explain: explain ?? deriveBadgeExplainability(stats, id, detail),
             score,
         });
     };
 
-    const addCustomBadge = (badge: Omit<BadgeAward, "hue">, score: number) => {
+    const addCustomBadge = (badge: Omit<BadgeAward, "hue" | "explain">, score: number, explain?: BadgeExplainability) => {
         const existing = candidateMap.get(badge.id);
         if (existing && existing.score >= score) {
             return;
@@ -837,6 +1069,7 @@ export function computeRunBadges(stats: RunStats): BadgeComputationResult {
         candidateMap.set(badge.id, {
             ...badge,
             hue: badgeHueFromId(badge.id),
+            explain: explain ?? deriveBadgeExplainability(stats, badge.id, badge.detail),
             score,
         });
     };
@@ -908,7 +1141,7 @@ export function computeRunBadges(stats: RunStats): BadgeComputationResult {
                     category: "Class",
                     description: `At least 50% of your likes came from ${className} (min 5 seen).`,
                     rarity: "epic",
-                    detail: className,
+                    detail: tokenDimensionLabel("Class", loyalist.cardClass),
                 },
                 100 * loyalist.share + 10,
             );
@@ -1027,7 +1260,7 @@ export function computeRunBadges(stats: RunStats): BadgeComputationResult {
             .sort((a, b) => b.share - a.share || b.entry.liked - a.entry.liked)[0];
 
         if (setLoyalist && setLoyalist.share >= 0.6) {
-            addBadgeById("expansion-loyalist", 90, prettyToken(setLoyalist.cardSet));
+            addBadgeById("expansion-loyalist", 90, tokenDimensionLabel("Set", setLoyalist.cardSet));
         }
     }
     if (likedCount(stats.bySet, "CORE") >= 4) addBadgeById("classic-collector", 75);
@@ -1164,7 +1397,7 @@ export function computeRunBadges(stats: RunStats): BadgeComputationResult {
         addBadgeById("coinflip", 70);
     }
 
-    return selectShowcase(Array.from(candidateMap.values()));
+    return selectShowcase(Array.from(candidateMap.values()), stats);
 }
 
 export function formatPercent(value: number): string {
