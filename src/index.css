@@ -15,6 +15,7 @@
 }
 
 :root {
+    --shell-max-width: min(500px, calc(100vw - 2rem));
     --papyrus-base: #dac59b;
     --papyrus-ink: #3f2503;
     --rarity-none-glow-rgb: 194, 202, 214;
@@ -33,7 +34,7 @@
 
 html, body, #root {
     height: 100%;
-    overflow: hidden;
+    min-height: 100%;
 }
 
 body {
@@ -42,14 +43,17 @@ body {
     background-image: url("./assets/background-papyrus-tile.png");
     background-position: center top;
     background-repeat: repeat-x;
-    background-size: auto 100%;
+    background-size: auto 100vh;
+    background-attachment: fixed;
     color: var(--papyrus-ink);
     font-family: "Belwe", Georgia, serif;
     font-weight: 700;
+    overflow-x: hidden;
+    overflow-y: auto;
 }
 
 .app {
-    min-height: 100%;
+    min-height: 100dvh;
     display: grid;
     place-items: start center;
     padding: 1.25rem 1.5rem 1.5rem;
@@ -72,7 +76,7 @@ body {
 }
 
 .logo {
-    width: min(92vw, 700px);
+    width: min(100%, var(--shell-max-width));
     height: auto;
     display: block;
     margin: 0 auto 0.85rem;
@@ -80,7 +84,7 @@ body {
 }
 
 .game-shell {
-    width: 500px;
+    width: var(--shell-max-width);
     max-width: 100%;
     height: clamp(230px, 34vw, 280px);
     margin: 0 auto;
@@ -95,8 +99,8 @@ body {
     --frame-window-inset-top: clamp(12px, 2.4vw, 18px);
     --frame-window-inset-bottom: clamp(2px, 0.8vw, 7px);
     --frame-window-radius: clamp(18px, 4.2vw, 26px);
-    --frame-top-height: clamp(110px, 31vw, 158px);
-    --frame-bottom-height: clamp(102px, 29vw, 146px);
+    --frame-top-height: clamp(74px, calc(var(--shell-max-width) * 0.3105), 158px);
+    --frame-bottom-height: clamp(68px, calc(var(--shell-max-width) * 0.287), 146px);
     position: relative;
     isolation: isolate;
     padding: clamp(2.3rem, 7vw, 3.4rem) clamp(1rem, 4.8vw, 1.8rem);
@@ -125,7 +129,7 @@ body {
     background-image: url("./assets/frame-golden-middle.png"), url("./assets/background-window-red.png");
     background-position: center, center;
     background-repeat: no-repeat, no-repeat;
-    background-size: 100% 100%, 100% 100%;
+    background-size: 100% 100%, cover;
     background-origin: border-box, content-box;
     background-clip: border-box, content-box;
 }
@@ -1356,12 +1360,12 @@ body {
     }
 
     .logo {
-        width: min(78vw, 520px);
+        width: min(100%, var(--shell-max-width));
         margin-bottom: 0.6rem;
     }
 
     .game-shell {
-        width: min(100%, 500px);
+        width: min(100%, var(--shell-max-width));
     }
 
     .shell-intro {
@@ -1595,4 +1599,360 @@ body {
         padding: 0.3rem 0.4rem;
     }
 
+}
+
+@media (max-height: 920px) and (max-width: 1100px) {
+    :root {
+        --shell-max-width: min(calc(100vw - 1.4rem), clamp(260px, 64vh, 460px));
+    }
+
+    html,
+    body,
+    #root {
+        height: auto;
+        min-height: 100%;
+    }
+
+    body,
+    #root {
+        overflow-x: hidden;
+        overflow-y: auto;
+    }
+
+    .app {
+        min-height: 100dvh;
+        padding: 0.56rem 0.7rem 0.9rem;
+    }
+
+    .hero {
+        min-height: auto;
+        width: min(100%, calc(var(--shell-max-width) + 44px));
+        padding: 0.08rem 0.2rem;
+        grid-template-rows: auto auto;
+        row-gap: 0.14rem;
+    }
+
+    .logo {
+        width: min(100%, var(--shell-max-width));
+        margin-bottom: 0.12rem;
+    }
+
+    .game-shell {
+        width: min(100%, var(--shell-max-width));
+        margin: 0 auto;
+        --frame-middle-top-inset: clamp(62px, 13.2vw, 82px);
+        --frame-overlap-top: clamp(3px, 0.8vw, 5px);
+        --frame-window-inset-top: clamp(6px, 1.5vw, 10px);
+        --frame-window-inset-bottom: clamp(-1px, 0.2vw, 2px);
+    }
+
+    .shell-intro {
+        height: clamp(390px, 86vh, 560px);
+        padding: 1.58rem 0.92rem 1.48rem;
+    }
+
+    .shell-active {
+        height: clamp(540px, 116vh, 700px);
+        padding: 0.96rem 0.62rem 0.9rem;
+    }
+
+    .shell-complete {
+        height: clamp(540px, 116vh, 700px);
+        padding: 1.55rem 0.62rem 0.56rem;
+    }
+}
+
+@media (max-height: 760px) and (max-width: 760px) {
+    :root {
+        --shell-max-width: min(calc(100vw - 1rem), clamp(220px, 60vh, 360px));
+    }
+
+    .hero {
+        row-gap: 0.08rem;
+    }
+
+    .logo {
+        margin-bottom: 0.04rem;
+    }
+
+    .game-shell {
+        --frame-middle-top-inset: clamp(66px, 15vw, 86px);
+        --frame-window-inset-top: clamp(4px, 1.1vw, 8px);
+        --frame-window-inset-bottom: clamp(-2px, 0.1vw, 1px);
+    }
+
+    .shell-intro {
+        height: clamp(360px, 84vh, 520px);
+        padding: 1.32rem 0.7rem 1.1rem;
+    }
+
+    .shell-intro .panel {
+        gap: 0.48rem;
+        padding-top: 0.25rem;
+    }
+
+    .shell-intro .panel h1 {
+        font-size: clamp(0.96rem, 4.2vw, 1.32rem);
+        line-height: 1.01;
+        margin-bottom: 0.08rem;
+    }
+
+    .shell-intro .panel > p.intro-subtitle {
+        max-width: min(100%, 230px);
+        font-size: 0.58rem;
+        line-height: 1.12;
+    }
+
+    .intro-rules {
+        width: min(100%, 230px);
+        font-size: 0.5rem;
+        line-height: 1.1;
+        gap: 0.12rem;
+    }
+
+    .intro-rule-line {
+        gap: 0.16rem;
+    }
+
+    .intro-rule-icon {
+        width: 12px;
+        height: 12px;
+    }
+
+    .intro-rule-icon--major {
+        width: 14px;
+        height: 14px;
+    }
+
+    .shell-intro .btn {
+        width: clamp(140px, 48vw, 182px);
+        font-size: 0.95rem;
+        margin-top: 0.38rem;
+    }
+
+    .shell-active,
+    .shell-complete {
+        height: clamp(500px, 110vh, 660px);
+    }
+}
+
+@media (max-width: 420px) {
+    :root {
+        --shell-max-width: min(360px, calc(100vw - 1rem));
+    }
+
+    .app {
+        padding: 0.5rem 0.5rem 0.9rem;
+    }
+
+    .hero {
+        width: min(100%, 440px);
+        padding: 0.08rem 0.12rem;
+    }
+
+    .logo {
+        width: min(100%, calc(var(--shell-max-width) * 0.98));
+        margin-bottom: 0.22rem;
+    }
+
+    .game-shell {
+        --frame-middle-top-inset: clamp(70px, 19vw, 92px);
+        --frame-overlap-top: clamp(2px, 0.7vw, 4px);
+        --frame-window-inset-top: clamp(3px, 1vw, 6px);
+        --frame-window-inset-bottom: clamp(-2px, 0.1vw, 1px);
+    }
+
+    .shell-intro {
+        height: clamp(360px, 112vw, 520px);
+        padding: 1.22rem 0.62rem 1.02rem;
+    }
+
+    .shell-intro .panel {
+        gap: 0.34rem;
+        padding-top: 0.14rem;
+    }
+
+    .shell-intro .panel h1 {
+        font-size: clamp(0.8rem, 8.2vw, 1.22rem);
+        line-height: 1;
+        margin-bottom: 0.06rem;
+    }
+
+    .shell-intro .panel > p.intro-subtitle {
+        max-width: min(100%, 210px);
+        font-size: 0.52rem;
+        line-height: 1.08;
+    }
+
+    .intro-rules {
+        width: min(100%, 212px);
+        font-size: 0.44rem;
+        line-height: 1.06;
+        gap: 0.1rem;
+    }
+
+    .intro-rule-line {
+        gap: 0.14rem;
+    }
+
+    .intro-rule-icon {
+        width: 11px;
+        height: 11px;
+    }
+
+    .intro-rule-icon--major {
+        width: 13px;
+        height: 13px;
+    }
+
+    .shell-intro .btn {
+        width: clamp(128px, 50vw, 170px);
+        font-size: 0.86rem;
+        margin-top: 0.26rem;
+    }
+
+    .shell-active {
+        height: clamp(530px, 165vw, 660px);
+        padding: 0.68rem 0.48rem 0.72rem;
+    }
+
+    .card-panel {
+        --edge-frame-gap: 0.5rem;
+    }
+
+    .swipe-stack {
+        width: min(100%, 246px);
+        height: 286px;
+        top: clamp(20px, 5vw, 30px);
+    }
+
+    .card-art-slot {
+        width: 190px;
+        height: 286px;
+    }
+
+    .card-image {
+        width: 190px;
+        height: 280px;
+    }
+
+    .card-content .run-count {
+        font-size: 0.94rem;
+        margin-bottom: 0.06rem;
+    }
+
+    .card-meta {
+        width: min(100%, 238px);
+        height: 84px;
+        gap: 0.14rem;
+    }
+
+    .panel .card-meta .card-artist {
+        font-size: 0.88rem;
+    }
+
+    .card-flavor-box {
+        height: 56px;
+        padding: 0.2rem 0.26rem;
+    }
+
+    .panel .card-meta .card-flavor {
+        --flavor-font-size: 11px;
+        line-height: 1.04;
+    }
+
+    .card-actions {
+        width: min(100%, 248px);
+        gap: 0.14rem;
+    }
+
+    .action-btn {
+        width: clamp(38px, 12vw, 48px);
+    }
+
+    .action-btn--major {
+        width: clamp(44px, 14vw, 56px);
+    }
+
+    .action-btn--minor {
+        width: clamp(31px, 9.6vw, 40px);
+    }
+
+    .shell-complete {
+        height: clamp(530px, 170vw, 690px);
+        padding: 0.88rem 0.46rem 0.58rem;
+    }
+
+    .panel--run-complete {
+        gap: 0.12rem;
+        padding: 0.46rem 0.04rem 0.2rem;
+    }
+
+    .panel--run-complete h1 {
+        font-size: clamp(0.9rem, 7.8vw, 1.2rem);
+    }
+
+    .run-summary-intro {
+        font-size: 0.6rem;
+    }
+
+    .run-summary-grid {
+        width: min(96%, 258px);
+        gap: 0.08rem;
+    }
+
+    .run-summary-stat {
+        min-height: 30px;
+        padding: 0.1rem 0.12rem 0.08rem;
+        border-radius: 6px;
+    }
+
+    .run-summary-stat__label {
+        font-size: 0.4rem;
+    }
+
+    .run-summary-stat__value {
+        font-size: 0.58rem;
+    }
+
+    .run-primary-title {
+        gap: 0.08rem;
+    }
+
+    .run-primary-title__label {
+        font-size: 0.64rem;
+    }
+
+    .run-primary-title__badge {
+        width: min(86%, 222px);
+        min-height: 48px;
+        padding: 0 0.5rem;
+    }
+
+    .run-primary-title__badge .run-badge__name {
+        font-size: 0.72rem;
+    }
+
+    .run-badges h2 {
+        font-size: 0.58rem;
+    }
+
+    .run-badge-list .run-badge {
+        width: min(82%, 208px);
+    }
+
+    .run-badge {
+        min-height: 28px;
+        padding: 0.1rem 0.34rem 0.12rem;
+    }
+
+    .run-badge__name {
+        font-size: 0.56rem;
+    }
+
+    .panel--run-complete .btn {
+        width: clamp(132px, 48vw, 170px);
+        font-size: 0.92rem;
+        margin-top: 0.04rem;
+    }
 }
