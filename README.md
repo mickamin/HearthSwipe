@@ -11,8 +11,17 @@ Swipe cards, lock in your choices, and run through a curated 30-card draft-sized
 - Actions: Like, Nope, Super Like, Reverse
 - Per-run limits: Super Like x2, Reverse x3
 - Reverse rules: latest card only, reverse does not stack, one reverse per card
+- End-of-run summary with stats, primary title badge, and earned badges
+- End-of-run "View Deck" popup with the full seen-card list and your final action per card
+- "Copy deck code" export (HearthSim deckstrings) directly from the Seen Cards popup
 - Custom fantasy-themed visual shell, buttons, and overlays (original / AI-generated assets)
 - Artist and flavor text display with fixed-size flavor box and auto-fitting text
+
+## Why I Built This
+
+I previously built **Hearthstone-Data-Exploration** (public Jupyter Notebook, MIT License, updated on Dec 4, 2024), and it got me deep into Hearthstone data work.
+
+After that, I wanted to ship something more playful and visual, so this app became that next step: a fast, game-feel portfolio piece that turns card data into an interactive product.
 
 ## Controls
 
@@ -22,12 +31,34 @@ Swipe cards, lock in your choices, and run through a curated 30-card draft-sized
 - Click buttons -> same actions as swipe gestures
 - Reverse button -> undo your latest valid action (within rules)
 
+## Deck Code Export
+
+At the end of a run:
+
+1. Open **View Deck**.
+2. Click **Copy deck code** next to the Seen Cards count.
+3. Paste in Hearthstone deck import.
+
+Export logic:
+
+- Uses cards you **Liked** or **Super Liked**
+- Chooses your dominant class from liked cards, then keeps that class + neutral cards
+- Enforces normal duplicate limits (1x Legendary, 2x other cards)
+- Encodes in **Wild** format using HearthSim **deckstrings**
+
+References:
+
+- deckstrings package: https://www.npmjs.com/package/deckstrings
+- deckstrings source: https://github.com/HearthSim/hearthstone-deckstrings
+- deckstring format docs: https://hearthsim.info/docs/deckstrings/
+
 ## Tech Stack
 
 - React 19
 - TypeScript
 - Vite
 - ESLint
+- deckstrings (HearthSim): https://www.npmjs.com/package/deckstrings
 
 ## Run Locally
 
@@ -102,6 +133,15 @@ Users are responsible for ensuring their usage complies with original rights hol
 ```text
 src/
   App.tsx
+  badge-rules.ts
+  components/
+    FlavorTextBox.tsx
+  lib/
+    cards.ts
+    clipboard.ts
+    deck-export.ts
+  types/
+    game.ts
   index.css
   assets/
 public/

@@ -1,4 +1,4 @@
-import { type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import logo from "./assets/logo-hearthswipe.png";
 import buttonInfo from "./assets/button-info.png";
 import buttonNo from "./assets/button-no.png";
@@ -11,94 +11,27 @@ import overlayVoteSuper from "./assets/overlay-vote-super.png";
 import overlayVoteYes from "./assets/overlay-vote-yes.png";
 import popupChatBubble from "./assets/popup-chat-bubble.png";
 import { computeRunBadges, formatPercent, type BadgeAward, type KeyBreakdownMap, type RunStats } from "./badge-rules";
+import { FlavorTextBox } from "./components/FlavorTextBox";
+import { cardImageUrl, fetchCards, shuffle } from "./lib/cards";
+import { copyTextToClipboard } from "./lib/clipboard";
+import { buildDeckstringFromRun, formatTokenForUi } from "./lib/deck-export";
+import type {
+    CardRarity,
+    DragState,
+    ExitAnimationState,
+    HearthstoneCard,
+    Phase,
+    ReverseCueDirection,
+    ReverseCueState,
+    RunCounters,
+    RunDeckEntry,
+    SwipeAction,
+} from "./types/game";
 
-type Phase = "intro" | "loading" | "ready" | "error";
-
-type CardRarity = "NONE" | "FREE" | "COMMON" | "RARE" | "EPIC" | "LEGENDARY";
-type SwipeAction = "yes" | "no" | "super";
-
-type RunCounters = {
-    yes: number;
-    no: number;
-    super: number;
-};
-
-type DragState = {
-    isActive: boolean;
-    x: number;
-    y: number;
-};
-
-type ExitAnimationState = {
-    cardIndex: number;
-    action: SwipeAction;
-    x: number;
-    y: number;
-    rotate: number;
-};
-
-type ReverseCueDirection = "left" | "right" | "up";
-
-type ReverseCueState = {
-    phase: "edge" | "center";
-    direction: ReverseCueDirection;
-    cardId: string;
-};
-
-type HearthstoneCard = {
-    id: string;
-    name: string;
-    artist: string;
-    flavor: string;
-    rarity: CardRarity;
-    cost: number | null;
-    cardType: string;
-    cardClass: string;
-    races: string[];
-    mechanics: string[];
-    attack: number | null;
-    health: number | null;
-    cardSet: string;
-};
-
-type RawCardTag = string | { name?: string } | null | undefined;
-
-type RawHearthstoneCard = {
-    id?: string;
-    name?: string;
-    artist?: string;
-    flavor?: string;
-    rarity?: string;
-    cost?: number;
-    type?: string;
-    cardClass?: string;
-    race?: string;
-    races?: string[] | string;
-    mechanics?: RawCardTag[];
-    referencedTags?: RawCardTag[];
-    attack?: number;
-    health?: number;
-    set?: string;
-};
-
-type CardCacheRecord = {
-    schemaVersion: number;
-    sourceUrl: string;
-    savedAt: number;
-    cards: HearthstoneCard[];
-};
-
-const CARDS_URL = "https://api.hearthstonejson.com/v1/latest/enUS/cards.collectible.json";
-const CARD_CACHE_KEY = "hearthswipe.collectible-cards.v2";
-const CARD_CACHE_SCHEMA_VERSION = 2;
-const CARD_CACHE_TTL_MS = 1000 * 60 * 60 * 12;
 const RUN_SIZE = 30;
 const MIN_LOADING_MS = 700;
 const RUN_REVERSE_LIMIT = 3;
 const RUN_SUPER_LIKE_LIMIT = 2;
-const FLAVOR_FONT_MAX_PX = 14;
-const FLAVOR_FONT_MIN_PX = 9;
-const FLAVOR_FONT_STEP_PX = 0.5;
 const STACK_VISIBLE_CARDS = 3;
 const SWIPE_COMMIT_PX = 82;
 const SWIPE_COMMIT_VELOCITY = 0.5;
@@ -112,6 +45,10 @@ const SWIPE_FADE_START_RATIO = 0.62;
 const SWIPE_FADE_VIEWPORT_MID_RATIO = 0.5;
 const REVERSE_EDGE_CUE_MS = 360;
 const REVERSE_CENTER_CUE_MS = 240;
+const DECK_MODAL_CLOSE_MS = 220;
+const SHELL_EXIT_TO_INTRO_MS = 700;
+const CARD_ZOOM_CLOSE_MS = 170;
+const DECKSTRING_FEEDBACK_MS = 1800;
 
 type RunSummary = {
     totalCards: number;
@@ -124,9 +61,6 @@ type RunSummary = {
     primaryTitle: BadgeAward | null;
     badges: BadgeAward[];
 };
-
-let inMemoryCardsCache: HearthstoneCard[] | null = null;
-let inFlightCardsRequest: Promise<HearthstoneCard[]> | null = null;
 
 function previewActionFromOffsets(x: number, y: number, canUseSuperLike: boolean): SwipeAction | null {
     if (canUseSuperLike && y <= -58 && Math.abs(y) > Math.abs(x) * 1.08) {
@@ -189,6 +123,26 @@ const DEFAULT_DRAG_STATE: DragState = {
     y: 0,
 };
 
+type TimeoutLikeRef = {
+    current: number | null;
+};
+
+function clearTimeoutRef(timerRef: TimeoutLikeRef): void {
+    if (timerRef.current === null) {
+        return;
+    }
+    window.clearTimeout(timerRef.current);
+    timerRef.current = null;
+}
+
+function setTimeoutRef(timerRef: TimeoutLikeRef, callback: () => void, delayMs: number): void {
+    clearTimeoutRef(timerRef);
+    timerRef.current = window.setTimeout(() => {
+        timerRef.current = null;
+        callback();
+    }, delayMs);
+}
+
 function createEmptyCounters(): RunCounters {
     return {
         yes: 0,
@@ -197,267 +151,8 @@ function createEmptyCounters(): RunCounters {
     };
 }
 
-function plainFlavorText(flavor?: string): string {
-    if (!flavor) {
-        return "";
-    }
-    return flavor
-        .replace(/<br\s*\/?>/gi, " ")
-        .replace(/<[^>]+>/g, "")
-        .replace(/&nbsp;|&#160;/gi, " ")
-        .replace(/\s+/g, " ")
-        .trim();
-}
-
-function normalizeRarity(rarity?: string): CardRarity {
-    const value = typeof rarity === "string" ? rarity.toUpperCase() : "";
-    switch (value) {
-        case "FREE":
-        case "COMMON":
-        case "RARE":
-        case "EPIC":
-        case "LEGENDARY":
-            return value;
-        default:
-            return "NONE";
-    }
-}
-
-function normalizeToken(value: unknown): string {
-    if (typeof value !== "string") {
-        return "";
-    }
-    return value
-        .trim()
-        .replace(/\s+/g, "_")
-        .replace(/-/g, "_")
-        .toUpperCase();
-}
-
-function optionalNumber(value: unknown): number | null {
-    return typeof value === "number" && Number.isFinite(value) ? value : null;
-}
-
-function normalizeTokenList(value: unknown): string[] {
-    if (Array.isArray(value)) {
-        const tokens = value
-            .map((entry) => (typeof entry === "string" ? entry : typeof entry === "object" && entry ? (entry as { name?: unknown }).name : ""))
-            .map((entry) => normalizeToken(entry))
-            .filter(Boolean);
-        return Array.from(new Set(tokens));
-    }
-
-    if (typeof value === "string") {
-        const tokens = value
-            .split(/[|,]/)
-            .map((token) => normalizeToken(token))
-            .filter(Boolean);
-        return Array.from(new Set(tokens));
-    }
-
-    return [];
-}
-
-function extractCardRaces(card: RawHearthstoneCard): string[] {
-    if (card.races) {
-        return normalizeTokenList(card.races);
-    }
-    return normalizeTokenList(card.race);
-}
-
-function extractCardMechanics(card: RawHearthstoneCard): string[] {
-    const direct = normalizeTokenList(card.mechanics);
-    const referenced = normalizeTokenList(card.referencedTags);
-    return Array.from(new Set([...direct, ...referenced]));
-}
-
-function isHearthstoneCard(value: unknown): value is HearthstoneCard {
-    if (!value || typeof value !== "object") {
-        return false;
-    }
-
-    const card = value as Partial<HearthstoneCard>;
-    return (
-        typeof card.id === "string" &&
-        typeof card.name === "string" &&
-        typeof card.artist === "string" &&
-        typeof card.flavor === "string" &&
-        typeof card.rarity === "string" &&
-        (typeof card.cost === "number" || card.cost === null) &&
-        typeof card.cardType === "string" &&
-        typeof card.cardClass === "string" &&
-        Array.isArray(card.races) &&
-        card.races.every((race) => typeof race === "string") &&
-        Array.isArray(card.mechanics) &&
-        card.mechanics.every((mechanic) => typeof mechanic === "string") &&
-        (typeof card.attack === "number" || card.attack === null) &&
-        (typeof card.health === "number" || card.health === null) &&
-        typeof card.cardSet === "string"
-    );
-}
-
 function rarityClassName(rarity: CardRarity): string {
     return `rarity-${rarity.toLowerCase()}`;
-}
-
-function cleanCard(card: RawHearthstoneCard): HearthstoneCard | null {
-    if (!card.id || !card.name) {
-        return null;
-    }
-
-    const artist = card.artist?.trim();
-    const flavor = typeof card.flavor === "string" ? card.flavor : "";
-
-    // Keep only cards that have both attribution and meaningful flavor text.
-    if (!artist || !plainFlavorText(flavor)) {
-        return null;
-    }
-
-    return {
-        id: card.id,
-        name: card.name,
-        artist,
-        flavor,
-        rarity: normalizeRarity(card.rarity),
-        cost: optionalNumber(card.cost),
-        cardType: normalizeToken(card.type) || "UNKNOWN",
-        cardClass: normalizeToken(card.cardClass) || "UNKNOWN",
-        races: extractCardRaces(card),
-        mechanics: extractCardMechanics(card),
-        attack: optionalNumber(card.attack),
-        health: optionalNumber(card.health),
-        cardSet: normalizeToken(card.set) || "UNKNOWN",
-    };
-}
-
-function shuffle<T>(arr: T[]): T[] {
-    const copy = [...arr];
-    for (let i = copy.length - 1; i > 0; i -= 1) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [copy[i], copy[j]] = [copy[j], copy[i]];
-    }
-    return copy;
-}
-
-function canUseLocalStorage(): boolean {
-    return typeof window !== "undefined" && typeof window.localStorage !== "undefined";
-}
-
-function isCardCacheRecord(value: unknown): value is CardCacheRecord {
-    if (!value || typeof value !== "object") {
-        return false;
-    }
-
-    const candidate = value as Partial<CardCacheRecord>;
-    return (
-        candidate.schemaVersion === CARD_CACHE_SCHEMA_VERSION &&
-        candidate.sourceUrl === CARDS_URL &&
-        typeof candidate.savedAt === "number" &&
-        Array.isArray(candidate.cards) &&
-        candidate.cards.every((card) => isHearthstoneCard(card))
-    );
-}
-
-function readCardsFromLocalCache(options?: { allowStale?: boolean }): HearthstoneCard[] | null {
-    if (!canUseLocalStorage()) {
-        return null;
-    }
-
-    try {
-        const raw = window.localStorage.getItem(CARD_CACHE_KEY);
-        if (!raw) {
-            return null;
-        }
-
-        const parsed = JSON.parse(raw) as unknown;
-        if (!isCardCacheRecord(parsed)) {
-            window.localStorage.removeItem(CARD_CACHE_KEY);
-            return null;
-        }
-
-        const isStale = Date.now() - parsed.savedAt > CARD_CACHE_TTL_MS;
-        if (isStale && !options?.allowStale) {
-            return null;
-        }
-
-        if (parsed.cards.length === 0) {
-            window.localStorage.removeItem(CARD_CACHE_KEY);
-            return null;
-        }
-
-        return parsed.cards;
-    } catch {
-        return null;
-    }
-}
-
-function writeCardsToLocalCache(cards: HearthstoneCard[]): void {
-    if (!canUseLocalStorage() || cards.length === 0) {
-        return;
-    }
-
-    const payload: CardCacheRecord = {
-        schemaVersion: CARD_CACHE_SCHEMA_VERSION,
-        sourceUrl: CARDS_URL,
-        savedAt: Date.now(),
-        cards,
-    };
-
-    try {
-        window.localStorage.setItem(CARD_CACHE_KEY, JSON.stringify(payload));
-    } catch {
-        // Best effort only: quota/privacy modes can block writes.
-    }
-}
-
-async function fetchCardsFromNetwork(): Promise<HearthstoneCard[]> {
-    const response = await fetch(CARDS_URL);
-    if (!response.ok) {
-        throw new Error(`Failed to fetch cards (${response.status})`);
-    }
-
-    const raw = (await response.json()) as RawHearthstoneCard[];
-    const cards = raw.map(cleanCard).filter((card): card is HearthstoneCard => Boolean(card));
-    if (cards.length === 0) {
-        throw new Error("Card payload was empty after filtering.");
-    }
-    return cards;
-}
-
-async function fetchCards(): Promise<HearthstoneCard[]> {
-    if (inMemoryCardsCache && inMemoryCardsCache.length > 0) {
-        return inMemoryCardsCache;
-    }
-
-    const freshFromCache = readCardsFromLocalCache();
-    if (freshFromCache) {
-        inMemoryCardsCache = freshFromCache;
-        return freshFromCache;
-    }
-
-    if (inFlightCardsRequest) {
-        return inFlightCardsRequest;
-    }
-
-    const staleFromCache = readCardsFromLocalCache({ allowStale: true });
-    inFlightCardsRequest = (async () => {
-        try {
-            const cards = await fetchCardsFromNetwork();
-            inMemoryCardsCache = cards;
-            writeCardsToLocalCache(cards);
-            return cards;
-        } catch (error) {
-            if (staleFromCache && staleFromCache.length > 0) {
-                inMemoryCardsCache = staleFromCache;
-                return staleFromCache;
-            }
-            throw error;
-        } finally {
-            inFlightCardsRequest = null;
-        }
-    })();
-
-    return inFlightCardsRequest;
 }
 
 function incrementBreakdown(stats: KeyBreakdownMap, key: string, liked: boolean): void {
@@ -597,65 +292,6 @@ function buildRunSummary(deck: HearthstoneCard[], actionsByIndex: Record<number,
     };
 }
 
-function cardImageUrl(cardId: string): string {
-    return `https://art.hearthstonejson.com/v1/render/latest/enUS/256x/${cardId}.png`;
-}
-
-function renderFlavorText(flavor?: string): ReactNode {
-    if (!flavor) {
-        return "No flavor text.";
-    }
-
-    const tokens = flavor.split(/(<\/?(?:i|b)>|<br\s*\/?>)/gi);
-    let italic = false;
-    let bold = false;
-    const parts: ReactNode[] = [];
-
-    tokens.forEach((token, index) => {
-        if (!token) {
-            return;
-        }
-        if (/^<i>$/i.test(token)) {
-            italic = true;
-            return;
-        }
-        if (/^<\/i>$/i.test(token)) {
-            italic = false;
-            return;
-        }
-        if (/^<b>$/i.test(token)) {
-            bold = true;
-            return;
-        }
-        if (/^<\/b>$/i.test(token)) {
-            bold = false;
-            return;
-        }
-        if (/^<br\s*\/?>$/i.test(token)) {
-            parts.push(<br key={`flavor-br-${index}`} />);
-            return;
-        }
-
-        const text = token.replace(/<[^>]+>/g, "");
-        if (!text) {
-            return;
-        }
-
-        let content: ReactNode = text;
-        if (italic) {
-            content = <em>{content}</em>;
-        }
-        if (bold) {
-            content = <strong>{content}</strong>;
-        }
-
-        parts.push(<span key={`flavor-${index}`}>{content}</span>);
-    });
-
-    const fallback = flavor.replace(/<[^>]+>/g, "").trim();
-    return parts.length > 0 ? parts : fallback || "No flavor text.";
-}
-
 function renderBadgeTooltipContent(badge: BadgeAward): ReactNode {
     const rarityText = `${badge.rarity.charAt(0).toUpperCase()}${badge.rarity.slice(1)}`;
     const thresholdText =
@@ -675,64 +311,30 @@ function renderBadgeTooltipContent(badge: BadgeAward): ReactNode {
     );
 }
 
-function FlavorTextBox({ flavor }: { flavor?: string }) {
-    const textRef = useRef<HTMLParagraphElement | null>(null);
+function runActionLabel(action: SwipeAction | null): string {
+    if (action === "yes") {
+        return "Liked";
+    }
+    if (action === "no") {
+        return "Noped";
+    }
+    if (action === "super") {
+        return "Super";
+    }
+    return "Skipped";
+}
 
-    useLayoutEffect(() => {
-        let raf = 0;
-        const text = textRef.current;
-        if (!text) {
-            return;
-        }
-
-        const fitText = () => {
-            const node = textRef.current;
-            if (!node) {
-                return;
-            }
-
-            let size = FLAVOR_FONT_MAX_PX;
-            node.style.setProperty("--flavor-font-size", `${size}px`);
-
-            while (
-                size > FLAVOR_FONT_MIN_PX &&
-                (node.scrollHeight > node.clientHeight || node.scrollWidth > node.clientWidth)
-            ) {
-                size -= FLAVOR_FONT_STEP_PX;
-                node.style.setProperty("--flavor-font-size", `${size}px`);
-            }
-        };
-
-        const scheduleFit = () => {
-            window.cancelAnimationFrame(raf);
-            raf = window.requestAnimationFrame(fitText);
-        };
-
-        scheduleFit();
-        window.addEventListener("resize", scheduleFit);
-
-        let observer: ResizeObserver | null = null;
-        if (typeof ResizeObserver !== "undefined") {
-            observer = new ResizeObserver(scheduleFit);
-            if (text.parentElement) {
-                observer.observe(text.parentElement);
-            }
-        }
-
-        return () => {
-            window.cancelAnimationFrame(raf);
-            window.removeEventListener("resize", scheduleFit);
-            observer?.disconnect();
-        };
-    }, [flavor]);
-
-    return (
-        <div className="card-flavor-box">
-            <p ref={textRef} className="card-flavor">
-                {renderFlavorText(flavor)}
-            </p>
-        </div>
-    );
+function runActionIcon(action: SwipeAction | null): string | null {
+    if (action === "yes") {
+        return overlayVoteYes;
+    }
+    if (action === "no") {
+        return overlayVoteNo;
+    }
+    if (action === "super") {
+        return overlayVoteSuper;
+    }
+    return null;
 }
 
 export default function App() {
@@ -749,6 +351,13 @@ export default function App() {
     const [dragState, setDragState] = useState<DragState>(DEFAULT_DRAG_STATE);
     const [exitAnimation, setExitAnimation] = useState<ExitAnimationState | null>(null);
     const [reverseCue, setReverseCue] = useState<ReverseCueState | null>(null);
+    const [isRunDeckOpen, setIsRunDeckOpen] = useState(false);
+    const [isRunDeckClosing, setIsRunDeckClosing] = useState(false);
+    const [isTransitioningToIntro, setIsTransitioningToIntro] = useState(false);
+    const [zoomedRunCard, setZoomedRunCard] = useState<HearthstoneCard | null>(null);
+    const [isZoomedRunCardClosing, setIsZoomedRunCardClosing] = useState(false);
+    const [isZoomedRunCardReady, setIsZoomedRunCardReady] = useState(false);
+    const [deckCodeCopyState, setDeckCodeCopyState] = useState<"idle" | "copied" | "failed">("idle");
     const dragOriginRef = useRef<{ pointerId: number | null; x: number; y: number; startedAtMs: number }>({
         pointerId: null,
         x: 0,
@@ -758,6 +367,11 @@ export default function App() {
     const actionTimerRef = useRef<number | null>(null);
     const reverseCueTimerRef = useRef<number | null>(null);
     const reverseCueClearTimerRef = useRef<number | null>(null);
+    const deckModalCloseTimerRef = useRef<number | null>(null);
+    const shellExitTimerRef = useRef<number | null>(null);
+    const zoomCardCloseTimerRef = useRef<number | null>(null);
+    const deckCodeFeedbackTimerRef = useRef<number | null>(null);
+    const zoomCardPreloadCacheRef = useRef<Record<string, true>>({});
 
     const currentCard = useMemo(() => deck[index], [deck, index]);
     const visibleCards = useMemo(() => deck.slice(index, index + STACK_VISIBLE_CARDS), [deck, index]);
@@ -806,8 +420,23 @@ export default function App() {
         () => buildRunSummary(deck, actionsByIndex, reverseUses),
         [deck, actionsByIndex, reverseUses],
     );
+    const runDeckEntries = useMemo<RunDeckEntry[]>(
+        () =>
+            deck.map((card, cardIndex) => ({
+                card,
+                cardIndex,
+                action: actionsByIndex[cardIndex] ?? null,
+            })),
+        [deck, actionsByIndex],
+    );
+    const runDeckExport = useMemo(() => buildDeckstringFromRun(runDeckEntries), [runDeckEntries]);
+    const copyDeckButtonLabel = deckCodeCopyState === "copied" ? "Copied" : deckCodeCopyState === "failed" ? "Copy failed" : "Copy deck code";
+    const copyDeckButtonTitle =
+        runDeckExport.deckstring === null
+            ? runDeckExport.error
+            : `Copy Wild deck code (${formatTokenForUi(runDeckExport.selectedClass)} + neutral, ${runDeckExport.exportedCardCount} cards)`;
 
-    const markCardLoaded = (cardId: string) => {
+    const markCardLoaded = useCallback((cardId: string) => {
         setLoadedCardIds((prev) => {
             if (prev[cardId]) {
                 return prev;
@@ -817,9 +446,9 @@ export default function App() {
                 [cardId]: true,
             };
         });
-    };
+    }, []);
 
-    const preloadCard = (cardId: string) => {
+    const preloadCard = useCallback((cardId: string) => {
         if (loadedCardIds[cardId]) {
             return;
         }
@@ -831,6 +460,100 @@ export default function App() {
             return;
         }
         image.onload = () => markCardLoaded(cardId);
+    }, [loadedCardIds, markCardLoaded]);
+
+    const preloadZoomCard = useCallback((cardId: string) => {
+        if (zoomCardPreloadCacheRef.current[cardId]) {
+            return;
+        }
+        const image = new Image();
+        image.decoding = "async";
+        image.src = cardImageUrl(cardId);
+        if (image.complete) {
+            zoomCardPreloadCacheRef.current[cardId] = true;
+            return;
+        }
+        image.onload = () => {
+            zoomCardPreloadCacheRef.current[cardId] = true;
+        };
+    }, []);
+
+    const openZoomedRunCard = (card: HearthstoneCard) => {
+        clearTimeoutRef(zoomCardCloseTimerRef);
+        setIsZoomedRunCardClosing(false);
+        setIsZoomedRunCardReady(false);
+        preloadZoomCard(card.id);
+        setZoomedRunCard(card);
+    };
+
+    const closeZoomedRunCardImmediately = () => {
+        clearTimeoutRef(zoomCardCloseTimerRef);
+        setIsZoomedRunCardClosing(false);
+        setIsZoomedRunCardReady(false);
+        setZoomedRunCard(null);
+    };
+
+    const closeZoomedRunCard = () => {
+        if (!zoomedRunCard || isZoomedRunCardClosing) {
+            return;
+        }
+        setIsZoomedRunCardClosing(true);
+        setTimeoutRef(zoomCardCloseTimerRef, () => {
+            setZoomedRunCard(null);
+            setIsZoomedRunCardClosing(false);
+            setIsZoomedRunCardReady(false);
+        }, CARD_ZOOM_CLOSE_MS);
+    };
+
+    const clearDeckCodeFeedback = () => {
+        clearTimeoutRef(deckCodeFeedbackTimerRef);
+        setDeckCodeCopyState("idle");
+    };
+
+    const closeRunDeckImmediately = () => {
+        clearTimeoutRef(deckModalCloseTimerRef);
+        setIsRunDeckClosing(false);
+        setIsRunDeckOpen(false);
+        clearDeckCodeFeedback();
+        closeZoomedRunCardImmediately();
+    };
+
+    const openRunDeck = () => {
+        clearTimeoutRef(deckModalCloseTimerRef);
+        setIsRunDeckClosing(false);
+        clearDeckCodeFeedback();
+        setIsRunDeckOpen(true);
+    };
+
+    const closeRunDeck = () => {
+        if (!isRunDeckOpen || isRunDeckClosing) {
+            return;
+        }
+        setIsRunDeckClosing(true);
+        clearDeckCodeFeedback();
+        closeZoomedRunCardImmediately();
+        setTimeoutRef(deckModalCloseTimerRef, () => {
+            setIsRunDeckOpen(false);
+            setIsRunDeckClosing(false);
+        }, DECK_MODAL_CLOSE_MS);
+    };
+
+    const copyDeckCode = async () => {
+        if (runDeckExport.deckstring === null) {
+            setDeckCodeCopyState("failed");
+            return;
+        }
+
+        try {
+            await copyTextToClipboard(runDeckExport.deckstring);
+            setDeckCodeCopyState("copied");
+        } catch {
+            setDeckCodeCopyState("failed");
+        }
+
+        setTimeoutRef(deckCodeFeedbackTimerRef, () => {
+            setDeckCodeCopyState("idle");
+        }, DECKSTRING_FEEDBACK_MS);
     };
 
     useEffect(() => {
@@ -839,36 +562,58 @@ export default function App() {
         }
         deck.slice(index, index + 6).forEach((card) => preloadCard(card.id));
         // We intentionally preload only nearby cards for smooth swipes with low memory impact.
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [deck, index]);
+    }, [deck, index, preloadCard]);
 
     useEffect(() => {
         return () => {
-            if (actionTimerRef.current !== null) {
-                window.clearTimeout(actionTimerRef.current);
-            }
-            if (reverseCueTimerRef.current !== null) {
-                window.clearTimeout(reverseCueTimerRef.current);
-            }
-            if (reverseCueClearTimerRef.current !== null) {
-                window.clearTimeout(reverseCueClearTimerRef.current);
-            }
+            clearTimeoutRef(actionTimerRef);
+            clearTimeoutRef(reverseCueTimerRef);
+            clearTimeoutRef(reverseCueClearTimerRef);
+            clearTimeoutRef(deckModalCloseTimerRef);
+            clearTimeoutRef(shellExitTimerRef);
+            clearTimeoutRef(zoomCardCloseTimerRef);
+            clearTimeoutRef(deckCodeFeedbackTimerRef);
         };
     }, []);
 
+    useEffect(() => {
+        if (!isRunDeckOpen) {
+            return;
+        }
+        const onKeyDown = (event: KeyboardEvent) => {
+            if (event.key !== "Escape") {
+                return;
+            }
+            if (zoomedRunCard) {
+                if (isZoomedRunCardClosing) {
+                    return;
+                }
+                setIsZoomedRunCardClosing(true);
+                setTimeoutRef(zoomCardCloseTimerRef, () => {
+                    setZoomedRunCard(null);
+                    setIsZoomedRunCardClosing(false);
+                    setIsZoomedRunCardReady(false);
+                }, CARD_ZOOM_CLOSE_MS);
+                return;
+            }
+            if (isRunDeckClosing) {
+                return;
+            }
+            clearDeckCodeFeedback();
+            setIsRunDeckClosing(true);
+            setTimeoutRef(deckModalCloseTimerRef, () => {
+                setIsRunDeckOpen(false);
+                setIsRunDeckClosing(false);
+            }, DECK_MODAL_CLOSE_MS);
+        };
+        window.addEventListener("keydown", onKeyDown);
+        return () => window.removeEventListener("keydown", onKeyDown);
+    }, [isRunDeckOpen, isRunDeckClosing, zoomedRunCard, isZoomedRunCardClosing]);
+
     const clearPendingAction = () => {
-        if (actionTimerRef.current !== null) {
-            window.clearTimeout(actionTimerRef.current);
-            actionTimerRef.current = null;
-        }
-        if (reverseCueTimerRef.current !== null) {
-            window.clearTimeout(reverseCueTimerRef.current);
-            reverseCueTimerRef.current = null;
-        }
-        if (reverseCueClearTimerRef.current !== null) {
-            window.clearTimeout(reverseCueClearTimerRef.current);
-            reverseCueClearTimerRef.current = null;
-        }
+        clearTimeoutRef(actionTimerRef);
+        clearTimeoutRef(reverseCueTimerRef);
+        clearTimeoutRef(reverseCueClearTimerRef);
         dragOriginRef.current.pointerId = null;
         setDragState(DEFAULT_DRAG_STATE);
         setExitAnimation(null);
@@ -927,13 +672,9 @@ export default function App() {
             rotate,
         });
 
-        if (actionTimerRef.current !== null) {
-            window.clearTimeout(actionTimerRef.current);
-        }
-        actionTimerRef.current = window.setTimeout(() => {
+        setTimeoutRef(actionTimerRef, () => {
             finalizeActionAtIndex(action, activeIndex);
             setExitAnimation(null);
-            actionTimerRef.current = null;
         }, SWIPE_ANIMATION_MS);
     };
 
@@ -1052,6 +793,7 @@ export default function App() {
     const startRun = async () => {
         const startedAt = Date.now();
         setPhase("loading");
+        closeRunDeckImmediately();
         setError("");
         try {
             const allCards = await fetchCards();
@@ -1101,7 +843,7 @@ export default function App() {
             cardId: targetCard.id,
         });
 
-        reverseCueTimerRef.current = window.setTimeout(() => {
+        setTimeoutRef(reverseCueTimerRef, () => {
             setRunCounters((prev) => ({
                 ...prev,
                 [previousAction]: Math.max(prev[previousAction] - 1, 0),
@@ -1123,30 +865,39 @@ export default function App() {
                 direction,
                 cardId: targetCard.id,
             });
-            reverseCueTimerRef.current = null;
-            reverseCueClearTimerRef.current = window.setTimeout(() => {
+            setTimeoutRef(reverseCueClearTimerRef, () => {
                 setReverseCue(null);
-                reverseCueClearTimerRef.current = null;
             }, REVERSE_CENTER_CUE_MS);
         }, REVERSE_EDGE_CUE_MS);
     };
 
     const reset = () => {
-        setPhase("intro");
-        setDeck([]);
-        setIndex(0);
-        setError("");
-        setLoadedCardIds({});
-        setRunCounters(createEmptyCounters());
-        setActionsByIndex({});
-        setReversedCardIndexes({});
-        setReverseUses(0);
-        setReverseCooldownUntilIndex(0);
-        clearPendingAction();
+        if (isTransitioningToIntro) {
+            return;
+        }
+
+        closeRunDeckImmediately();
+        setIsTransitioningToIntro(true);
+
+        setTimeoutRef(shellExitTimerRef, () => {
+            setPhase("intro");
+            setDeck([]);
+            setIndex(0);
+            setError("");
+            setLoadedCardIds({});
+            setRunCounters(createEmptyCounters());
+            setActionsByIndex({});
+            setReversedCardIndexes({});
+            setReverseUses(0);
+            setReverseCooldownUntilIndex(0);
+            clearPendingAction();
+            setIsTransitioningToIntro(false);
+        }, SHELL_EXIT_TO_INTRO_MS);
     };
 
     const isDone = phase === "ready" && index >= deck.length;
-    const shellClassName = `game-shell ${phase === "intro" ? "shell-intro" : isDone ? "shell-complete" : "shell-active"}`;
+    const useIntroShellLayout = phase === "intro" || phase === "loading" || phase === "error" || isTransitioningToIntro;
+    const shellClassName = `game-shell ${useIntroShellLayout ? "shell-intro" : isDone ? "shell-complete" : "shell-active"}${isTransitioningToIntro ? " is-transitioning-out" : ""}`;
 
     return (
         <div className="app">
@@ -1319,7 +1070,7 @@ export default function App() {
                     )}
 
                     {isDone && (
-                        <section className="panel panel--enter panel--run-complete">
+                        <section className={`panel panel--enter panel--run-complete${isTransitioningToIntro ? " is-transitioning-out" : ""}`}>
                             <h1>Run complete</h1>
                             <p className="run-summary-intro">You judged {runSummary.totalCards} cards this run.</p>
 
@@ -1364,8 +1115,8 @@ export default function App() {
                                 </section>
                             )}
 
-                            <section className="run-badges" aria-label="Unlocked badges">
-                                <h2>Unlocked badges ({runSummary.badges.length + (runSummary.primaryTitle ? 1 : 0)})</h2>
+                            <section className="run-badges" aria-label="Earned badges">
+                                <h2>Earned badges</h2>
                                 {runSummary.badges.length === 0 && (
                                     <p className="run-badges__empty">No badges this time. Try a different swipe style next run.</p>
                                 )}
@@ -1384,10 +1135,96 @@ export default function App() {
                                 </div>
                             </section>
 
-                            <button className="btn" onClick={reset} type="button">
-                                New Run
-                            </button>
+                            <div className="run-complete-actions">
+                                <button className="btn" onClick={openRunDeck} type="button" disabled={isTransitioningToIntro}>
+                                    View Deck
+                                </button>
+                                <button className="btn" onClick={reset} type="button" disabled={isTransitioningToIntro}>
+                                    New Run
+                                </button>
+                            </div>
                         </section>
+                    )}
+
+                    {isDone && isRunDeckOpen && (
+                        <div className={`run-deck-modal ${isRunDeckClosing ? "is-closing" : ""}`} role="dialog" aria-modal="true" aria-labelledby="run-deck-title">
+                            <button
+                                className="run-deck-modal__backdrop"
+                                type="button"
+                                aria-label="Close deck list"
+                                onClick={closeRunDeck}
+                            />
+                            <section className="run-deck-modal__panel">
+                                <header className="run-deck-modal__header">
+                                    <div className="run-deck-modal__title-wrap">
+                                        <h2 id="run-deck-title">Seen cards ({runDeckEntries.length})</h2>
+                                        <button
+                                            className={`run-deck-modal__copy ${deckCodeCopyState !== "idle" ? `is-${deckCodeCopyState}` : ""}`}
+                                            type="button"
+                                            onClick={copyDeckCode}
+                                            disabled={runDeckExport.deckstring === null}
+                                            title={copyDeckButtonTitle}
+                                        >
+                                            {copyDeckButtonLabel}
+                                        </button>
+                                    </div>
+                                    <button className="run-deck-modal__close" type="button" onClick={closeRunDeck}>
+                                        Close
+                                    </button>
+                                </header>
+                                <div className="run-deck-modal__list">
+                                    {runDeckEntries.map((entry) => {
+                                        const actionIcon = runActionIcon(entry.action);
+                                        const actionLabel = runActionLabel(entry.action);
+                                        return (
+                                            <article className="run-deck-card" key={`${entry.card.id}-${entry.cardIndex}`}>
+                                                <button
+                                                    className="run-deck-card__thumb"
+                                                    type="button"
+                                                    onClick={() => openZoomedRunCard(entry.card)}
+                                                    onPointerEnter={() => preloadZoomCard(entry.card.id)}
+                                                    onFocus={() => preloadZoomCard(entry.card.id)}
+                                                    aria-label={`Enlarge ${entry.card.name}`}
+                                                >
+                                                    <img className="run-deck-card__image" src={cardImageUrl(entry.card.id)} alt={`${entry.card.name} card art`} />
+                                                </button>
+                                                <div className="run-deck-card__body">
+                                                    <h3 className="run-deck-card__name">
+                                                        #{entry.cardIndex + 1} • {entry.card.name}
+                                                    </h3>
+                                                    <p className="run-deck-card__meta">
+                                                        {formatTokenForUi(entry.card.cardClass)} {formatTokenForUi(entry.card.cardType)}
+                                                    </p>
+                                                </div>
+                                                <span className="run-deck-card__vote" aria-label={actionLabel} title={actionLabel}>
+                                                    {actionIcon && <img src={actionIcon} alt="" aria-hidden="true" />}
+                                                </span>
+                                            </article>
+                                        );
+                                    })}
+                                </div>
+                            </section>
+                            {zoomedRunCard && (
+                                <div className={`run-card-zoom ${isZoomedRunCardClosing ? "is-closing" : ""}`} role="dialog" aria-modal="true" aria-label={`${zoomedRunCard.name} preview`}>
+                                    <button
+                                        className="run-card-zoom__backdrop"
+                                        type="button"
+                                        aria-label="Close card preview"
+                                        onClick={closeZoomedRunCard}
+                                    />
+                                    <section className="run-card-zoom__panel">
+                                        <img
+                                            className={`run-card-zoom__image ${isZoomedRunCardReady ? "is-ready" : ""}`}
+                                            src={cardImageUrl(zoomedRunCard.id)}
+                                            alt={zoomedRunCard.name}
+                                            loading="eager"
+                                            decoding="async"
+                                            onLoad={() => setIsZoomedRunCardReady(true)}
+                                        />
+                                    </section>
+                                </div>
+                            )}
+                        </div>
                     )}
                 </div>
             </main>
