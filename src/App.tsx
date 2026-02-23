@@ -49,6 +49,69 @@ const DECK_MODAL_CLOSE_MS = 220;
 const SHELL_EXIT_TO_INTRO_MS = 700;
 const CARD_ZOOM_CLOSE_MS = 170;
 const DECKSTRING_FEEDBACK_MS = 1800;
+const DEFAULT_CARD_TYPE_FILTERS = ["MINION", "SPELL"] as const;
+
+type RunModeFilters = {
+    cardTypes: string[];
+    cardClasses: string[];
+    cardSets: string[];
+};
+
+type ModeSectionKey = "types" | "classes" | "sets";
+
+const DEFAULT_RUN_MODE_FILTERS: RunModeFilters = {
+    cardTypes: [...DEFAULT_CARD_TYPE_FILTERS],
+    cardClasses: [],
+    cardSets: [],
+};
+
+const CARD_CLASS_LABELS: Record<string, string> = {
+    DEATHKNIGHT: "Death Knight (DK)",
+    DEMONHUNTER: "Demon Hunter (DH)",
+    DRUID: "Druid",
+    HUNTER: "Hunter",
+    MAGE: "Mage",
+    PALADIN: "Paladin",
+    PRIEST: "Priest",
+    ROGUE: "Rogue",
+    SHAMAN: "Shaman",
+    WARLOCK: "Warlock",
+    WARRIOR: "Warrior",
+    NEUTRAL: "Neutral",
+};
+
+const CARD_TYPE_LABELS: Record<string, string> = {
+    MINION: "Minion",
+    SPELL: "Spell",
+    WEAPON: "Weapon",
+    HERO: "Hero",
+    LOCATION: "Location",
+    HERO_POWER: "Hero Power",
+};
+
+const CARD_SET_LABELS: Record<string, string> = {
+    CORE: "Core",
+    EXPERT1: "Classic",
+    BRM: "Blackrock Mountain",
+    TGT: "The Grand Tournament",
+    LOE: "League of Explorers",
+    OG: "Whispers of the Old Gods",
+    GVG: "Goblins vs Gnomes",
+    NAXX: "Curse of Naxxramas",
+    UNGORO: "Journey to Un'Goro",
+    BOOMSDAY: "The Boomsday Project",
+    DALARAN: "Rise of Shadows",
+    DRAGONS: "Descent of Dragons",
+    BLACK_TEMPLE: "Ashes of Outland",
+    STORMWIND: "United in Stormwind",
+    ALTERAC_VALLEY: "Fractured in Alterac Valley",
+    REVENDRETH: "Murder at Castle Nathria",
+    TITANS: "Titans",
+    WHIZBANGS_WORKSHOP: "Whizbang's Workshop",
+    WILD_WEST: "Showdown in the Badlands",
+    EVENT: "Event",
+    HERO_SKINS: "Hero Skins",
+};
 
 type RunSummary = {
     totalCards: number;
@@ -149,6 +212,82 @@ function createEmptyCounters(): RunCounters {
         no: 0,
         super: 0,
     };
+}
+
+function labelForCardType(token: string): string {
+    return CARD_TYPE_LABELS[token] ?? formatTokenForUi(token);
+}
+
+function labelForCardClass(token: string): string {
+    return CARD_CLASS_LABELS[token] ?? formatTokenForUi(token);
+}
+
+function labelForCardSet(token: string): string {
+    return CARD_SET_LABELS[token] ?? formatTokenForUi(token);
+}
+
+function isVisibleSetOption(token: string): boolean {
+    if (!token || token === "UNKNOWN") {
+        return false;
+    }
+    if (token.startsWith("PLACEHOLDER_")) {
+        return false;
+    }
+    return true;
+}
+
+function matchesRunMode(card: HearthstoneCard, mode: RunModeFilters): boolean {
+    if (mode.cardTypes.length > 0 && !mode.cardTypes.includes(card.cardType)) {
+        return false;
+    }
+    if (mode.cardClasses.length > 0 && !mode.cardClasses.includes(card.cardClass)) {
+        return false;
+    }
+    if (mode.cardSets.length > 0 && !mode.cardSets.includes(card.cardSet)) {
+        return false;
+    }
+    return true;
+}
+
+function buildRunDeck(pool: HearthstoneCard[], runSize: number): HearthstoneCard[] {
+    if (pool.length === 0) {
+        return [];
+    }
+
+    const runDeck: HearthstoneCard[] = [];
+    while (runDeck.length < runSize) {
+        runDeck.push(...shuffle(pool));
+    }
+    return runDeck.slice(0, runSize);
+}
+
+function sortTokensForUi(tokens: string[], tokenToLabel: (token: string) => string): string[] {
+    return [...tokens].sort((a, b) => tokenToLabel(a).localeCompare(tokenToLabel(b)));
+}
+
+function toggleToken(tokens: string[], token: string): string[] {
+    if (tokens.includes(token)) {
+        return tokens.filter((entry) => entry !== token);
+    }
+    return [...tokens, token];
+}
+
+function summarizeSelection(
+    selected: string[],
+    all: string[],
+    labelFor: (token: string) => string,
+    labels: { any: string; all: string },
+): string {
+    if (selected.length === 0) {
+        return labels.any;
+    }
+    if (selected.length >= all.length && all.length > 0) {
+        return labels.all;
+    }
+    if (selected.length <= 2) {
+        return selected.map(labelFor).join(", ");
+    }
+    return `${selected.length} selected`;
 }
 
 function rarityClassName(rarity: CardRarity): string {
@@ -339,6 +478,12 @@ function runActionIcon(action: SwipeAction | null): string | null {
 
 export default function App() {
     const [phase, setPhase] = useState<Phase>("intro");
+    const [openModeSection, setOpenModeSection] = useState<ModeSectionKey | null>("types");
+    const [setSearchQuery, setSetSearchQuery] = useState("");
+    const [cardCatalog, setCardCatalog] = useState<HearthstoneCard[] | null>(null);
+    const [isModeSetupLoading, setIsModeSetupLoading] = useState(false);
+    const [modeSetupError, setModeSetupError] = useState<string>("");
+    const [runMode, setRunMode] = useState<RunModeFilters>(DEFAULT_RUN_MODE_FILTERS);
     const [deck, setDeck] = useState<HearthstoneCard[]>([]);
     const [index, setIndex] = useState(0);
     const [error, setError] = useState<string>("");
@@ -435,6 +580,68 @@ export default function App() {
         runDeckExport.deckstring === null
             ? runDeckExport.error
             : `Copy Wild deck code (${formatTokenForUi(runDeckExport.selectedClass)} + neutral, ${runDeckExport.exportedCardCount} cards)`;
+    const typeOptions = useMemo(() => {
+        if (!cardCatalog) {
+            return [];
+        }
+        const cardTypes = new Set<string>();
+        cardCatalog.forEach((card) => {
+            if (card.cardType && card.cardType !== "UNKNOWN") {
+                cardTypes.add(card.cardType);
+            }
+        });
+        return sortTokensForUi(Array.from(cardTypes), labelForCardType);
+    }, [cardCatalog]);
+    const classOptions = useMemo(() => {
+        if (!cardCatalog) {
+            return [];
+        }
+        const classes = new Set<string>();
+        cardCatalog.forEach((card) => {
+            if (card.cardClass && card.cardClass !== "UNKNOWN") {
+                classes.add(card.cardClass);
+            }
+        });
+        return sortTokensForUi(Array.from(classes), labelForCardClass);
+    }, [cardCatalog]);
+    const setOptions = useMemo(() => {
+        if (!cardCatalog) {
+            return [];
+        }
+        const sets = new Set<string>();
+        cardCatalog.forEach((card) => {
+            if (isVisibleSetOption(card.cardSet)) {
+                sets.add(card.cardSet);
+            }
+        });
+        return sortTokensForUi(Array.from(sets), labelForCardSet);
+    }, [cardCatalog]);
+    const filteredSetOptions = useMemo(() => {
+        const query = setSearchQuery.trim().toLowerCase();
+        if (!query) {
+            return setOptions;
+        }
+        return setOptions.filter((token) => labelForCardSet(token).toLowerCase().includes(query));
+    }, [setOptions, setSearchQuery]);
+    const matchingCards = useMemo(() => {
+        if (!cardCatalog) {
+            return [];
+        }
+        return cardCatalog.filter((card) => matchesRunMode(card, runMode));
+    }, [cardCatalog, runMode]);
+    const shouldRepeatCards = matchingCards.length > 0 && matchingCards.length < RUN_SIZE;
+    const typesSummary = useMemo(
+        () => summarizeSelection(runMode.cardTypes, typeOptions, labelForCardType, { any: "Any type", all: "All types" }),
+        [runMode.cardTypes, typeOptions],
+    );
+    const classesSummary = useMemo(
+        () => summarizeSelection(runMode.cardClasses, classOptions, labelForCardClass, { any: "Any class", all: "All classes" }),
+        [runMode.cardClasses, classOptions],
+    );
+    const setsSummary = useMemo(
+        () => summarizeSelection(runMode.cardSets, setOptions, labelForCardSet, { any: "Any expansion", all: "All expansions" }),
+        [runMode.cardSets, setOptions],
+    );
 
     const markCardLoaded = useCallback((cardId: string) => {
         setLoadedCardIds((prev) => {
@@ -554,6 +761,32 @@ export default function App() {
         setTimeoutRef(deckCodeFeedbackTimerRef, () => {
             setDeckCodeCopyState("idle");
         }, DECKSTRING_FEEDBACK_MS);
+    };
+
+    const loadCatalogForModePicker = useCallback(async () => {
+        setIsModeSetupLoading(true);
+        setModeSetupError("");
+        try {
+            const allCards = await fetchCards();
+            setCardCatalog(allCards);
+        } catch (err) {
+            const message = err instanceof Error ? err.message : "Unknown error";
+            setModeSetupError(message);
+        } finally {
+            setIsModeSetupLoading(false);
+        }
+    }, []);
+
+    const openModePicker = () => {
+        closeRunDeckImmediately();
+        setError("");
+        setModeSetupError("");
+        setOpenModeSection("types");
+        setSetSearchQuery("");
+        setPhase("setup");
+        if (!cardCatalog && !isModeSetupLoading) {
+            void loadCatalogForModePicker();
+        }
     };
 
     useEffect(() => {
@@ -792,12 +1025,23 @@ export default function App() {
 
     const startRun = async () => {
         const startedAt = Date.now();
-        setPhase("loading");
         closeRunDeckImmediately();
         setError("");
+        setModeSetupError("");
         try {
-            const allCards = await fetchCards();
-            const runDeck = shuffle(allCards).slice(0, RUN_SIZE);
+            const allCards = cardCatalog && cardCatalog.length > 0 ? cardCatalog : await fetchCards();
+            if (!cardCatalog || cardCatalog.length === 0) {
+                setCardCatalog(allCards);
+            }
+            const filteredCards = allCards.filter((card) => matchesRunMode(card, runMode));
+            if (filteredCards.length === 0) {
+                setModeSetupError("No cards match this mode. Change filters and try again.");
+                setPhase("setup");
+                return;
+            }
+
+            setPhase("loading");
+            const runDeck = buildRunDeck(filteredCards, RUN_SIZE);
             const elapsed = Date.now() - startedAt;
             if (elapsed < MIN_LOADING_MS) {
                 await new Promise((resolve) => {
@@ -884,6 +1128,7 @@ export default function App() {
             setDeck([]);
             setIndex(0);
             setError("");
+            setModeSetupError("");
             setLoadedCardIds({});
             setRunCounters(createEmptyCounters());
             setActionsByIndex({});
@@ -896,8 +1141,10 @@ export default function App() {
     };
 
     const isDone = phase === "ready" && index >= deck.length;
+    const useSetupShellLayout = phase === "setup";
     const useIntroShellLayout = phase === "intro" || phase === "loading" || phase === "error" || isTransitioningToIntro;
-    const shellClassName = `game-shell ${useIntroShellLayout ? "shell-intro" : isDone ? "shell-complete" : "shell-active"}${isTransitioningToIntro ? " is-transitioning-out" : ""}`;
+    const shellLayoutClass = useSetupShellLayout ? "shell-setup" : useIntroShellLayout ? "shell-intro" : isDone ? "shell-complete" : "shell-active";
+    const shellClassName = `game-shell ${shellLayoutClass}${isTransitioningToIntro ? " is-transitioning-out" : ""}`;
 
     return (
         <div className="app">
@@ -934,9 +1181,303 @@ export default function App() {
                                     </span>
                                 </li>
                             </ul>
-                            <button className="btn" onClick={startRun} type="button">
+                            <button className="btn" onClick={openModePicker} type="button">
                                 Start
                             </button>
+                        </section>
+                    )}
+
+                    {phase === "setup" && (
+                        <section className="panel panel--enter mode-picker">
+                            <h1>Pick your mode</h1>
+                            <p className="intro-subtitle mode-picker__subtitle">Choose filters for type, class, and expansion. Default type picks: Minion + Spell.</p>
+
+                            {isModeSetupLoading && (
+                                <p className="mode-picker__status">Loading cards and building filter options...</p>
+                            )}
+
+                            {!isModeSetupLoading && modeSetupError && (
+                                <>
+                                    <p className="mode-picker__error">{modeSetupError}</p>
+                                    <div className="mode-picker__actions">
+                                        <button className="btn" onClick={() => void loadCatalogForModePicker()} type="button">
+                                            Retry
+                                        </button>
+                                        <button
+                                            className="btn"
+                                            onClick={() => {
+                                                setModeSetupError("");
+                                                setPhase("intro");
+                                            }}
+                                            type="button"
+                                        >
+                                            Back
+                                        </button>
+                                    </div>
+                                </>
+                            )}
+
+                            {!isModeSetupLoading && !modeSetupError && cardCatalog && (
+                                <>
+                                    <div className="mode-picker__filters" role="group" aria-label="Mode filters">
+                                        <section className={`mode-picker__group ${openModeSection === "types" ? "is-open" : "is-collapsed"}`} aria-label="Card types">
+                                            <button
+                                                className="mode-picker__group-toggle"
+                                                type="button"
+                                                onClick={() => setOpenModeSection((prev) => (prev === "types" ? null : "types"))}
+                                                aria-expanded={openModeSection === "types"}
+                                            >
+                                                <span className="mode-picker__group-title">Types</span>
+                                                <span className="mode-picker__group-summary">{typesSummary}</span>
+                                                <span className="mode-picker__group-caret" aria-hidden="true">
+                                                    ▾
+                                                </span>
+                                            </button>
+
+                                            <div className="mode-picker__group-body" aria-hidden={openModeSection !== "types"}>
+                                                <div className="mode-picker__group-actions">
+                                                    <button
+                                                        className="mode-picker__mini-btn"
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setRunMode((prev) => ({
+                                                                ...prev,
+                                                                cardTypes: [...DEFAULT_CARD_TYPE_FILTERS],
+                                                            }));
+                                                        }}
+                                                    >
+                                                        Default
+                                                    </button>
+                                                    <button
+                                                        className="mode-picker__mini-btn"
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setRunMode((prev) => ({
+                                                                ...prev,
+                                                                cardTypes: [...typeOptions],
+                                                            }));
+                                                        }}
+                                                    >
+                                                        All
+                                                    </button>
+                                                    <button
+                                                        className="mode-picker__mini-btn"
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setRunMode((prev) => ({
+                                                                ...prev,
+                                                                cardTypes: [],
+                                                            }));
+                                                        }}
+                                                    >
+                                                        Any
+                                                    </button>
+                                                </div>
+                                                <div className="mode-picker__option-list mode-picker__option-list--grid">
+                                                    {typeOptions.map((cardType) => {
+                                                        const isActive = runMode.cardTypes.includes(cardType);
+                                                        return (
+                                                            <button
+                                                                key={cardType}
+                                                                className={`mode-picker__toggle ${isActive ? "is-active" : ""}`}
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    setRunMode((prev) => ({
+                                                                        ...prev,
+                                                                        cardTypes: toggleToken(prev.cardTypes, cardType),
+                                                                    }));
+                                                                }}
+                                                                aria-pressed={isActive}
+                                                            >
+                                                                {labelForCardType(cardType)}
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        </section>
+
+                                        <section className={`mode-picker__group ${openModeSection === "classes" ? "is-open" : "is-collapsed"}`} aria-label="Card classes">
+                                            <button
+                                                className="mode-picker__group-toggle"
+                                                type="button"
+                                                onClick={() => setOpenModeSection((prev) => (prev === "classes" ? null : "classes"))}
+                                                aria-expanded={openModeSection === "classes"}
+                                            >
+                                                <span className="mode-picker__group-title">Classes</span>
+                                                <span className="mode-picker__group-summary">{classesSummary}</span>
+                                                <span className="mode-picker__group-caret" aria-hidden="true">
+                                                    ▾
+                                                </span>
+                                            </button>
+
+                                            <div className="mode-picker__group-body" aria-hidden={openModeSection !== "classes"}>
+                                                <div className="mode-picker__group-actions">
+                                                    <button
+                                                        className="mode-picker__mini-btn"
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setRunMode((prev) => ({
+                                                                ...prev,
+                                                                cardClasses: [...classOptions],
+                                                            }));
+                                                        }}
+                                                    >
+                                                        All
+                                                    </button>
+                                                    <button
+                                                        className="mode-picker__mini-btn"
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setRunMode((prev) => ({
+                                                                ...prev,
+                                                                cardClasses: [],
+                                                            }));
+                                                        }}
+                                                    >
+                                                        Any
+                                                    </button>
+                                                </div>
+                                                <div className="mode-picker__option-list mode-picker__option-list--grid">
+                                                    {classOptions.map((cardClass) => {
+                                                        const isActive = runMode.cardClasses.includes(cardClass);
+                                                        return (
+                                                            <button
+                                                                key={cardClass}
+                                                                className={`mode-picker__toggle ${isActive ? "is-active" : ""}`}
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    setRunMode((prev) => ({
+                                                                        ...prev,
+                                                                        cardClasses: toggleToken(prev.cardClasses, cardClass),
+                                                                    }));
+                                                                }}
+                                                                aria-pressed={isActive}
+                                                            >
+                                                                {labelForCardClass(cardClass)}
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        </section>
+
+                                        <section className={`mode-picker__group ${openModeSection === "sets" ? "is-open" : "is-collapsed"}`} aria-label="Card sets">
+                                            <button
+                                                className="mode-picker__group-toggle"
+                                                type="button"
+                                                onClick={() => setOpenModeSection((prev) => (prev === "sets" ? null : "sets"))}
+                                                aria-expanded={openModeSection === "sets"}
+                                            >
+                                                <span className="mode-picker__group-title">Expansions</span>
+                                                <span className="mode-picker__group-summary">{setsSummary}</span>
+                                                <span className="mode-picker__group-caret" aria-hidden="true">
+                                                    ▾
+                                                </span>
+                                            </button>
+
+                                            <div className="mode-picker__group-body" aria-hidden={openModeSection !== "sets"}>
+                                                <div className="mode-picker__group-actions">
+                                                    <button
+                                                        className="mode-picker__mini-btn"
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setRunMode((prev) => ({
+                                                                ...prev,
+                                                                cardSets: [...setOptions],
+                                                            }));
+                                                        }}
+                                                    >
+                                                        All
+                                                    </button>
+                                                    <button
+                                                        className="mode-picker__mini-btn"
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setRunMode((prev) => ({
+                                                                ...prev,
+                                                                cardSets: [],
+                                                            }));
+                                                        }}
+                                                    >
+                                                        Any
+                                                    </button>
+                                                </div>
+                                                <div className="mode-picker__search-row">
+                                                    <input
+                                                        className="mode-picker__search-input"
+                                                        type="search"
+                                                        placeholder="Search expansions..."
+                                                        value={setSearchQuery}
+                                                        onChange={(event) => setSetSearchQuery(event.target.value)}
+                                                    />
+                                                    {setSearchQuery.trim().length > 0 && (
+                                                        <button
+                                                            className="mode-picker__search-clear"
+                                                            type="button"
+                                                            onClick={() => setSetSearchQuery("")}
+                                                        >
+                                                            Clear
+                                                        </button>
+                                                    )}
+                                                </div>
+                                                {filteredSetOptions.length === 0 && (
+                                                    <p className="mode-picker__search-empty">No expansions match this search.</p>
+                                                )}
+                                                <div className="mode-picker__option-list mode-picker__option-list--sets">
+                                                    {filteredSetOptions.map((cardSet) => {
+                                                        const isActive = runMode.cardSets.includes(cardSet);
+                                                        return (
+                                                            <button
+                                                                key={cardSet}
+                                                                className={`mode-picker__toggle ${isActive ? "is-active" : ""}`}
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    setRunMode((prev) => ({
+                                                                        ...prev,
+                                                                        cardSets: toggleToken(prev.cardSets, cardSet),
+                                                                    }));
+                                                                }}
+                                                                aria-pressed={isActive}
+                                                            >
+                                                                {labelForCardSet(cardSet)}
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        </section>
+                                    </div>
+
+                                    <p className="mode-picker__pool">
+                                        Matching pool: <strong>{matchingCards.length}</strong> unique cards.
+                                    </p>
+                                    {shouldRepeatCards && (
+                                        <p className="mode-picker__warning">
+                                            Pool is below {RUN_SIZE}, so cards will repeat this run.
+                                        </p>
+                                    )}
+                                    {matchingCards.length === 0 && (
+                                        <p className="mode-picker__warning">No cards match this combination.</p>
+                                    )}
+
+                                    <div className="mode-picker__actions">
+                                        <button
+                                            className="btn"
+                                            onClick={() => {
+                                                setModeSetupError("");
+                                                setPhase("intro");
+                                            }}
+                                            type="button"
+                                        >
+                                            Back
+                                        </button>
+                                        <button className="btn" onClick={startRun} type="button" disabled={matchingCards.length === 0}>
+                                            Start Run
+                                        </button>
+                                    </div>
+                                </>
+                            )}
                         </section>
                     )}
 
@@ -951,8 +1492,8 @@ export default function App() {
                         <section className="panel panel--enter">
                             <h1>Could not load cards</h1>
                             <p>{error}</p>
-                            <button className="btn" onClick={startRun} type="button">
-                                Retry
+                            <button className="btn" onClick={openModePicker} type="button">
+                                Mode picker
                             </button>
                         </section>
                     )}
@@ -984,7 +1525,7 @@ export default function App() {
                                         const isSwipeHighlighted = (isTopCard && dragState.isActive) || isExitingCard;
                                         return (
                                             <article
-                                                key={card.id}
+                                                key={`${card.id}-${absoluteIndex}`}
                                                 className={`swipe-card ${isTopCard ? "is-top" : ""} ${isTopInteractive ? "is-interactive" : ""} ${isTopCard && dragState.isActive ? "is-dragging" : ""} ${isExitingCard ? "is-exiting" : ""} ${isSwipeHighlighted ? "is-highlighted" : ""}`}
                                                 style={cardStyleForStackIndex(stackIndex, absoluteIndex)}
                                                 onPointerDown={isTopInteractive ? handleCardPointerDown : undefined}
@@ -1193,7 +1734,7 @@ export default function App() {
                                                         #{entry.cardIndex + 1} • {entry.card.name}
                                                     </h3>
                                                     <p className="run-deck-card__meta">
-                                                        {formatTokenForUi(entry.card.cardClass)} {formatTokenForUi(entry.card.cardType)}
+                                                        {labelForCardClass(entry.card.cardClass)} {labelForCardType(entry.card.cardType)}
                                                     </p>
                                                 </div>
                                                 <span className="run-deck-card__vote" aria-label={actionLabel} title={actionLabel}>

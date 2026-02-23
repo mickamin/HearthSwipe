@@ -1,4 +1,4 @@
-export type Phase = "intro" | "loading" | "ready" | "error";
+export type Phase = "intro" | "setup" | "loading" | "ready" | "error";
 
 export type CardRarity = "NONE" | "FREE" | "COMMON" | "RARE" | "EPIC" | "LEGENDARY";
 export type SwipeAction = "yes" | "no" | "super";
