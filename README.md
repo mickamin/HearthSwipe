@@ -5,9 +5,15 @@ A fan-made, non-commercial Hearthstone companion app built with React and TypeSc
 HearthSwipe is a Tinder-style web app for quick-fire Hearthstone card judging.
 Swipe cards, lock in your choices, and run through a curated 30-card draft-sized batch.
 
+## Live Demo
+
+https://hearthswipe.vercel.app/
+
 ## Features
 
 - 30-card runs using collectible cards only
+- **Pick Your Mode**: filter cards by type, class, and expansion before starting a run
+- Default card type filters: **Minion + Spell**
 - Actions: Like, Nope, Super Like, Reverse
 - Per-run limits: Super Like x2, Reverse x3
 - Reverse rules: latest card only, reverse does not stack, one reverse per card
@@ -16,6 +22,10 @@ Swipe cards, lock in your choices, and run through a curated 30-card draft-sized
 - "Copy deck code" export (HearthSim deckstrings) directly from the Seen Cards popup
 - Custom fantasy-themed visual shell, buttons, and overlays (original / AI-generated assets)
 - Artist and flavor text display with fixed-size flavor box and auto-fitting text
+
+## Screenshots
+
+(coming soon)
 
 ## Why I Built This
 
@@ -30,6 +40,23 @@ After that, I wanted to ship something more playful and visual, so this app beca
 - Drag up -> Super Like
 - Click buttons -> same actions as swipe gestures
 - Reverse button -> undo your latest valid action (within rules)
+
+## Pick Your Mode
+
+Before starting a run, you can customize the card pool using filters.
+
+Available filters:
+
+- **Card Type** (e.g., Minion, Spell, Weapon)
+- **Class** (Mage, Warrior, etc.)
+- **Expansion / Set**
+
+Default configuration includes:
+
+- **Minions**
+- **Spells**
+
+This allows players to tailor runs for specific archetypes, expansions, or card styles.
 
 ## Deck Code Export
 
@@ -116,6 +143,19 @@ All UI elements, frames, overlays, and background assets used in this project ar
 
 These assets are not official Blizzard assets and are not extracted from the Hearthstone game.
 
+## Future Improvements
+
+Planned improvements and potential features:
+
+### UI / UX
+- Improve responsive layout for smaller screens and mobile devices
+
+### Gameplay
+- Persist earned badges and run history using local storage
+
+### Documentation
+- Add screenshots and a short demo walkthrough
+
 ## License
 
 The original source code and original visual assets in this repository are licensed under the MIT License (see `LICENSE`).
@@ -147,7 +187,3 @@ src/
 public/
   favicon.png
 ```
-
-Current asset files are kept in a single `src/assets` folder with descriptive prefixes (`button-`, `overlay-`, `background-`, `frame-`).
-
-If the asset set grows, splitting into subfolders (`assets/buttons`, `assets/overlays`, `assets/backgrounds`) is a safe next step.

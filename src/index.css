@@ -76,8 +76,10 @@ body {
 }
 
 .logo {
-    width: min(100%, var(--shell-max-width));
+    width: auto;
+    max-width: min(100%, var(--shell-max-width));
     height: auto;
+    max-height: clamp(130px, 22dvh, 220px);
     display: block;
     margin: 0 auto 0.85rem;
     filter: drop-shadow(0 10px 14px rgba(78, 45, 17, 0.35));
@@ -103,7 +105,11 @@ body {
     --frame-bottom-height: clamp(68px, calc(var(--shell-max-width) * 0.287), 146px);
     position: relative;
     isolation: isolate;
-    padding: clamp(2.3rem, 7vw, 3.4rem) clamp(1rem, 4.8vw, 1.8rem);
+    --content-inset-top: calc(var(--frame-middle-top-inset) - var(--frame-overlap-top) + var(--frame-window-inset-top));
+    --content-inset-bottom: calc(var(--frame-middle-bottom-inset) - var(--frame-overlap-bottom) + var(--frame-window-inset-bottom));
+    padding-top: var(--content-inset-top);
+    padding-bottom: var(--content-inset-bottom);
+    padding-inline: clamp(1rem, 4.8vw, 1.8rem);
     display: grid;
     align-content: center;
     justify-items: center;
@@ -181,44 +187,34 @@ body {
 }
 
 .shell-intro {
-    height: clamp(470px, 64vw, 620px);
-    padding: clamp(2.45rem, 6.1vw, 3.2rem) clamp(1.12rem, 4.9vw, 1.65rem) clamp(2.25rem, 5.9vw, 3.25rem);
+    height: clamp(450px, min(64vw, calc(100dvh - 230px)), 620px);
+    padding-inline: clamp(1.12rem, 4.9vw, 1.65rem);
 }
 
 .shell-setup {
-    --shell-max-width: clamp(420px, min(96vw, 86vh), 720px);
-    height: clamp(740px, 92dvh, 960px);
+    height: clamp(560px, min(64vw, calc(100dvh - 235px)), 680px);
     align-content: start;
     display: flex;
     justify-content: center;
     align-items: stretch;
     overflow: visible;
-    padding:
-        clamp(2.32rem, 5.8vw, 3.3rem)
-        clamp(0.9rem, 3.4vw, 1.42rem)
-        clamp(1.26rem, 3vw, 1.86rem);
+    padding-inline: clamp(1.75rem, 5.4vw, 2.25rem);
 }
 
 .shell-active {
     --shell-max-width: clamp(300px, min(90vw, 56dvh), 500px);
-    height: clamp(560px, calc(var(--shell-max-width) * 1.52), 790px);
+    height: clamp(480px, min(calc(var(--shell-max-width) * 1.52), calc(100dvh - 230px)), 790px);
     align-content: start;
     overflow: visible;
-    padding:
-        clamp(1.18rem, 3.2vw, 1.6rem)
-        clamp(0.85rem, 3.4vw, 1.35rem)
-        clamp(1.2rem, 3vw, 1.7rem);
+    padding-inline: clamp(0.85rem, 3.4vw, 1.35rem);
 }
 
 .shell-complete {
     --shell-max-width: clamp(300px, min(90vw, 56dvh), 500px);
-    height: clamp(590px, calc(var(--shell-max-width) * 1.74), 860px);
+    height: clamp(520px, min(calc(var(--shell-max-width) * 1.74), calc(100dvh - 230px)), 860px);
     align-content: start;
     overflow: visible;
-    padding:
-        clamp(2.7rem, 7.4vw, 3.8rem)
-        clamp(0.8rem, 3.2vw, 1.25rem)
-        clamp(0.75rem, 2vw, 1.1rem);
+    padding-inline: clamp(0.8rem, 3.2vw, 1.25rem);
 }
 
 .panel {
@@ -231,7 +227,14 @@ body {
     justify-items: center;
 }
 
-.shell-intro .panel,
+.shell-intro .panel {
+    min-height: 0;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
 .shell-setup .panel {
     min-height: 0;
     height: 100%;
@@ -279,7 +282,11 @@ body {
     line-height: 1.14;
 }
 
-.shell-active .panel,
+.shell-active .panel {
+    height: 100%;
+    min-height: 0;
+}
+
 .shell-complete .panel {
     height: 100%;
     min-height: 0;
@@ -289,9 +296,10 @@ body {
     width: 100%;
     height: 100%;
     min-height: 0;
-    overflow: visible;
-    align-content: start;
-    justify-items: stretch;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    overflow: hidden;
     gap: 0.24rem;
     padding: clamp(2.1rem, 5.6vw, 2.9rem) clamp(0.28rem, 1.2vw, 0.44rem) 0.34rem;
     transition: opacity 220ms ease, transform 220ms ease;
@@ -317,7 +325,7 @@ body {
 
 .run-summary-grid {
     width: min(90%, 424px);
-    justify-self: center;
+    align-self: center;
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 0.14rem;
@@ -377,6 +385,11 @@ body {
     margin-top: 0.02rem;
     display: grid;
     gap: 0.18rem;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(161, 130, 60, 0.5) transparent;
 }
 
 .run-primary-title {
@@ -639,7 +652,8 @@ body {
 
 .run-complete-actions {
     width: min(90%, 398px);
-    justify-self: center;
+    align-self: center;
+    flex: 0 0 auto;
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0.22rem;
@@ -1509,11 +1523,11 @@ body {
 
 .card-panel {
     --edge-frame-gap: clamp(1.02rem, 2.8vw, 1.34rem);
-    --card-width: clamp(172px, min(calc(var(--shell-max-width) * 0.5), 36dvh), 286px);
+    --card-width: clamp(172px, min(calc(var(--shell-max-width) * 0.5), 20dvh), 286px);
     --card-height: calc(var(--card-width) * 1.461);
     --stack-width: clamp(240px, calc(var(--card-width) + 84px), 372px);
     --stack-height: calc(var(--card-height) + 18px);
-    --stack-offset-top: clamp(24px, 4.8vh, 58px);
+    --stack-offset-top: clamp(4px, 0.8vh, 12px);
     width: 100%;
     position: relative;
     height: 100%;
@@ -1522,7 +1536,7 @@ body {
     flex-direction: column;
     justify-content: space-between;
     align-items: stretch;
-    padding-top: var(--edge-frame-gap);
+    padding-top: 0;
     row-gap: 0;
     overflow: visible;
 }
@@ -1849,7 +1863,7 @@ body {
     min-height: 0;
     padding-top: 0;
     margin-top: 0;
-    padding-bottom: var(--edge-frame-gap);
+    padding-bottom: 0.25rem;
     transform: none;
     align-self: stretch;
 }
@@ -2242,7 +2256,6 @@ body {
     }
 
     .logo {
-        width: min(100%, var(--shell-max-width));
         margin-bottom: 0.4rem;
     }
 
@@ -2259,13 +2272,13 @@ body {
 
     .shell-intro {
         height: clamp(470px, 106vw, 650px);
-        padding: 2.1rem 1.16rem 2.22rem;
+        padding-inline: 1.16rem;
     }
 
     .shell-setup {
         --shell-max-width: min(calc(100vw - 0.8rem), 560px);
-        height: clamp(700px, 92dvh, 860px);
-        padding: 2rem 0.82rem 1.06rem;
+        height: clamp(520px, calc(100dvh - 225px), 650px);
+        padding-inline: 0.82rem;
     }
 
     .shell-intro .panel h1 {
@@ -2378,17 +2391,16 @@ body {
     }
 
     .shell-active {
-        height: clamp(560px, 70dvh, 650px);
-        padding: 1.08rem 0.72rem 0.95rem;
+        height: clamp(480px, min(calc(var(--shell-max-width) * 1.52), calc(100dvh - 210px)), 650px);
+        padding-inline: 0.72rem;
     }
 
     .shell-complete {
-        height: clamp(580px, 74dvh, 680px);
-        padding: 2.28rem 0.64rem 0.72rem;
+        height: clamp(530px, calc(100dvh - 210px), 680px);
+        padding-inline: 0.64rem;
     }
 
-    .shell-active .panel,
-    .shell-complete .panel {
+    .shell-active .panel {
         height: 100%;
         min-height: 0;
     }
@@ -2403,11 +2415,11 @@ body {
         --card-height: calc(var(--card-width) * 1.455);
         --stack-width: clamp(286px, 82vw, 318px);
         --stack-height: calc(var(--card-height) + 14px);
-        --stack-offset-top: clamp(48px, 10vw, 66px);
+        --stack-offset-top: clamp(4px, 1vw, 10px);
     }
 
     .panel--run-complete {
-        padding: 1.58rem 0.08rem 0.46rem;
+        padding: 0.4rem 0.08rem 0.2rem;
         gap: 0.16rem;
     }
 
@@ -2583,7 +2595,7 @@ body {
 
     .card-footer {
         padding-top: 0;
-        padding-bottom: var(--edge-frame-gap);
+        padding-bottom: 0.25rem;
     }
 
     .card-meta {
@@ -2601,28 +2613,36 @@ body {
 
 }
 
-@media (min-width: 721px) and (max-height: 760px) {
+@media (min-width: 721px) and (max-height: 820px) {
+    .logo {
+        max-height: clamp(110px, 16dvh, 150px);
+    }
+
     .shell-setup {
         --shell-max-width: clamp(360px, min(94vw, 74vh), 620px);
-        height: clamp(640px, calc(100dvh - 20px), 780px);
-        padding: clamp(1.84rem, 4.3vh, 2.48rem) clamp(0.68rem, 2.7vw, 1.1rem) clamp(1.02rem, 2.2vh, 1.38rem);
+        height: clamp(420px, calc(100dvh - 200px), 580px);
+        padding-inline: clamp(0.68rem, 2.7vw, 1.1rem);
     }
 
     .shell-active {
         --shell-max-width: clamp(270px, min(84vw, 54dvh), 440px);
-        height: clamp(500px, calc(100dvh - 108px), 640px);
-        padding: clamp(0.82rem, 2.2vh, 1.18rem) clamp(0.62rem, 2.6vw, 1rem) clamp(0.66rem, 1.8vh, 0.98rem);
+        height: clamp(400px, min(calc(var(--shell-max-width) * 1.52), calc(100dvh - 190px)), 610px);
+        padding-inline: clamp(0.62rem, 2.6vw, 1rem);
     }
 
     .shell-complete {
         --shell-max-width: clamp(270px, min(84vw, 54dvh), 440px);
-        height: clamp(520px, calc(100dvh - 92px), 680px);
-        padding: clamp(1.7rem, 5.1vh, 2.4rem) clamp(0.62rem, 2.5vw, 0.96rem) clamp(0.62rem, 1.6vh, 0.9rem);
+        height: clamp(470px, calc(100dvh - 220px), 640px);
+        padding-inline: clamp(0.62rem, 2.5vw, 0.96rem);
     }
 
     .shell-active .card-panel {
         --edge-frame-gap: clamp(0.44rem, 1.3vh, 0.8rem);
-        --stack-offset-top: clamp(28px, 4.6vh, 46px);
+        --stack-offset-top: clamp(18px, 3vh, 34px);
+        --card-width: clamp(110px, min(32vw, 34dvh), 172px);
+        --card-height: calc(var(--card-width) * 1.455);
+        --stack-width: calc(var(--card-width) + 56px);
+        --stack-height: calc(var(--card-height) + 8px);
     }
 
     .card-content .run-count {
@@ -2657,7 +2677,6 @@ body {
     }
 
     .logo {
-        width: min(100%, calc(var(--shell-max-width) * 0.98));
         margin-bottom: 0.22rem;
     }
 
@@ -2670,13 +2689,13 @@ body {
 
     .shell-intro {
         height: clamp(460px, 104vw, 620px);
-        padding: 1.65rem 0.84rem 1.42rem;
+        padding-inline: 0.84rem;
     }
 
     .shell-setup {
         --shell-max-width: min(calc(100vw - 0.72rem), 520px);
-        height: clamp(640px, 92dvh, 820px);
-        padding: 1.72rem 0.62rem 1rem;
+        height: clamp(470px, calc(100dvh - 215px), 560px);
+        padding-inline: 0.62rem;
     }
 
     .shell-intro .panel {
@@ -2801,7 +2820,7 @@ body {
         --frame-middle-bottom-inset: clamp(40px, 10.5vw, 54px);
         --frame-bottom-height: clamp(54px, calc(var(--shell-max-width) * 0.24), 108px);
         --frame-bottom-offset: clamp(-10px, -2.8vw, -6px);
-        height: clamp(590px, 178vw, 740px);
+        height: clamp(460px, min(calc(var(--shell-max-width) * 1.52), calc(100dvh - 210px)), 700px);
         padding: 0.92rem 0.62rem 0.88rem;
     }
 
@@ -2864,7 +2883,7 @@ body {
         --frame-middle-bottom-inset: clamp(40px, 10.5vw, 54px);
         --frame-bottom-height: clamp(54px, calc(var(--shell-max-width) * 0.24), 108px);
         --frame-bottom-offset: clamp(-10px, -2.8vw, -6px);
-        height: clamp(600px, 186vw, 780px);
+        height: clamp(530px, calc(100dvh - 210px), 760px);
         padding: 1.62rem 0.58rem 0.86rem;
     }
 
@@ -3024,4 +3043,87 @@ body {
     .run-card-zoom__image {
         width: min(92vw, 280px);
     }
+}
+
+/* Landscape phones (short screens) */
+@media (max-height: 480px) {
+    .app {
+        padding: 0.3rem 1.5rem 0.3rem;
+    }
+
+    .hero {
+        row-gap: 0;
+    }
+
+    .logo {
+        max-height: 46px;
+        margin-bottom: 0.1rem;
+    }
+
+    .shell-intro {
+        height: clamp(230px, calc(100dvh - 65px), 380px);
+        padding-inline: 1rem;
+    }
+
+    .shell-setup {
+        max-height: calc(100dvh - 65px);
+        padding-inline: 0.7rem;
+    }
+
+    .shell-setup .panel {
+        max-height: calc(100dvh - 65px - 1.5rem);
+        overflow-y: auto;
+        scrollbar-width: thin;
+        scrollbar-color: rgba(161, 130, 60, 0.5) transparent;
+    }
+
+    .shell-active {
+        --shell-max-width: clamp(200px, min(48vw, 82dvh), 360px);
+        height: clamp(250px, calc(100dvh - 65px), 390px);
+        padding-inline: 0.6rem;
+    }
+
+    .shell-complete {
+        --shell-max-width: clamp(200px, min(48vw, 82dvh), 360px);
+        max-height: calc(100dvh - 65px);
+        padding-inline: 0.6rem;
+    }
+
+    .shell-complete .panel {
+        max-height: calc(100dvh - 65px - 1.5rem);
+        overflow-y: auto;
+        scrollbar-width: thin;
+        scrollbar-color: rgba(161, 130, 60, 0.5) transparent;
+    }
+
+    .card-panel {
+        --stack-offset-top: 10px;
+        --card-width: clamp(110px, 30dvh, 148px);
+        --card-height: calc(var(--card-width) * 1.455);
+        --stack-width: calc(var(--card-width) + 56px);
+        --stack-height: calc(var(--card-height) + 8px);
+        --edge-frame-gap: 0.36rem;
+    }
+
+    .swipe-stack {
+        top: var(--stack-offset-top);
+    }
+
+    .card-meta {
+        height: clamp(46px, 12dvh, 62px);
+    }
+
+    .card-flavor-box {
+        height: clamp(30px, 8dvh, 46px);
+        padding: 0.2rem 0.28rem;
+    }
+
+    .card-actions {
+        width: min(100%, 200px);
+        gap: 0.1rem;
+    }
+
+    .action-btn { width: 28px; }
+    .action-btn--major { width: 34px; }
+    .action-btn--minor { width: 20px; }
 }
