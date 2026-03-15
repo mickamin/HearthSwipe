@@ -988,7 +988,7 @@ export default function App() {
 
     const cardStyleForStackIndex = (stackIndex: number, absoluteIndex: number): CSSProperties => {
         const baseScale = (20 - stackIndex) / 20;
-        const baseTranslateY = stackIndex * -18;
+        const baseTranslateY = stackIndex * -9;
         const baseOpacity = Math.max(0, (10 - stackIndex) / 10);
         const isTopCard = stackIndex === 0;
         const isExiting = exitAnimation?.cardIndex === absoluteIndex;
@@ -1149,7 +1149,12 @@ export default function App() {
     return (
         <div className="app">
             <main className="hero">
-                <img className="logo" src={logo} alt="HearthSwipe logo" />
+                <div className="logo-area">
+                    <img className="logo" src={logo} alt="HearthSwipe logo" />
+                    <p className="logo-credit">
+                        by <a href="https://mickamin.vercel.app/" target="_blank" rel="noopener noreferrer" className="logo-credit__link">mickamin</a>
+                    </p>
+                </div>
                 <div className={shellClassName}>
                     {phase === "intro" && (
                         <section className="panel panel--enter">

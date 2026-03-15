@@ -3,8 +3,7 @@
     src:
         local("BelweBT-Bold"),
         local("Belwe Bold BT"),
-        url("https://db.onlinewebfonts.com/t/3ee8a7eb4aa82d9eb4f73e85e2e02eaf.woff2") format("woff2"),
-        url("https://db.onlinewebfonts.com/t/3ee8a7eb4aa82d9eb4f73e85e2e02eaf.woff") format("woff");
+        url("./assets/belwe-bd-bt-bold.woff2") format("woff2");
     font-style: normal;
     font-weight: 700;
     font-display: swap;
@@ -16,6 +15,15 @@
 
 :root {
     --shell-max-width: clamp(320px, min(94vw, 64vh), 620px);
+    /* 8-direction text-stroke helpers */
+    --ts-12: 1.2px 0 0 #000, 0.85px 0.85px 0 #000, 0 1.2px 0 #000, -0.85px 0.85px 0 #000, -1.2px 0 0 #000, -0.85px -0.85px 0 #000, 0 -1.2px 0 #000, 0.85px -0.85px 0 #000;
+    --ts-13: 1.3px 0 0 #000, 0.92px 0.92px 0 #000, 0 1.3px 0 #000, -0.92px 0.92px 0 #000, -1.3px 0 0 #000, -0.92px -0.92px 0 #000, 0 -1.3px 0 #000, 0.92px -0.92px 0 #000;
+    --ts-14: 1.4px 0 0 #000, 0.99px 0.99px 0 #000, 0 1.4px 0 #000, -0.99px 0.99px 0 #000, -1.4px 0 0 #000, -0.99px -0.99px 0 #000, 0 -1.4px 0 #000, 0.99px -0.99px 0 #000;
+    --ts-15: 1.5px 0 0 #000, 1.06px 1.06px 0 #000, 0 1.5px 0 #000, -1.06px 1.06px 0 #000, -1.5px 0 0 #000, -1.06px -1.06px 0 #000, 0 -1.5px 0 #000, 1.06px -1.06px 0 #000;
+    --ts-16: 1.6px 0 0 #000, 1.13px 1.13px 0 #000, 0 1.6px 0 #000, -1.13px 1.13px 0 #000, -1.6px 0 0 #000, -1.13px -1.13px 0 #000, 0 -1.6px 0 #000, 1.13px -1.13px 0 #000;
+    --ts-17: 1.7px 0 0 #000, 1.2px 1.2px 0 #000, 0 1.7px 0 #000, -1.2px 1.2px 0 #000, -1.7px 0 0 #000, -1.2px -1.2px 0 #000, 0 -1.7px 0 #000, 1.2px -1.2px 0 #000;
+    --ts-18: 1.8px 0 0 #000, 1.27px 1.27px 0 #000, 0 1.8px 0 #000, -1.27px 1.27px 0 #000, -1.8px 0 0 #000, -1.27px -1.27px 0 #000, 0 -1.8px 0 #000, 1.27px -1.27px 0 #000;
+    --ts-2: 2px 0 0 #000, 1.414px 1.414px 0 #000, 0 2px 0 #000, -1.414px 1.414px 0 #000, -2px 0 0 #000, -1.414px -1.414px 0 #000, 0 -2px 0 #000, 1.414px -1.414px 0 #000;
     --papyrus-base: #dac59b;
     --papyrus-ink: #3f2503;
     --rarity-none-glow-rgb: 194, 202, 214;
@@ -42,9 +50,8 @@ body {
     background-color: var(--papyrus-base);
     background-image: url("./assets/background-papyrus-tile.png");
     background-position: center top;
-    background-repeat: repeat-x;
-    background-size: auto 100vh;
-    background-attachment: fixed;
+    background-repeat: repeat;
+    background-size: auto;
     color: var(--papyrus-ink);
     font-family: "Belwe", Georgia, serif;
     font-weight: 700;
@@ -56,7 +63,7 @@ body {
     min-height: 100dvh;
     display: grid;
     place-items: start center;
-    padding: 1.25rem 1.5rem 1.5rem;
+    padding: 1.25rem 1.5rem max(1.5rem, env(safe-area-inset-bottom));
 }
 
 .hero {
@@ -67,6 +74,29 @@ body {
     display: grid;
     grid-template-rows: auto 1fr;
     align-items: start;
+}
+
+.logo-credit {
+    margin: -0.3rem 0 0.5rem;
+    text-align: center;
+    font-family: "Belwe", Georgia, serif;
+    font-weight: 700;
+    font-size: 0.62rem;
+    color: var(--papyrus-ink);
+    letter-spacing: 0.05em;
+    opacity: 0.45;
+}
+
+.logo-credit__link {
+    color: inherit;
+    text-decoration: none;
+}
+
+@media (hover: hover) {
+    .logo-credit__link:hover {
+        opacity: 0.75;
+        text-decoration: underline;
+    }
 }
 
 .hero p {
@@ -98,7 +128,7 @@ body {
     --frame-seam-feather-bottom: clamp(13px, 2.8vw, 18px);
     --frame-bottom-offset: clamp(-2px, -0.35vw, -1px);
     --frame-window-inset-x: clamp(26px, 5.2vw, 34px);
-    --frame-window-inset-top: clamp(6px, 1.3vw, 10px);
+    --frame-window-inset-top: clamp(16px, 2.8vw, 26px);
     --frame-window-inset-bottom: clamp(0px, 0.45vw, 3px);
     --frame-window-radius: clamp(18px, 4.2vw, 26px);
     --frame-top-height: clamp(74px, calc(var(--shell-max-width) * 0.3105), 158px);
@@ -354,15 +384,7 @@ body {
     text-align: center;
     letter-spacing: 0.02em;
     text-transform: uppercase;
-    text-shadow:
-        1.4px 0 0 #000,
-        0.99px 0.99px 0 #000,
-        0 1.4px 0 #000,
-        -0.99px 0.99px 0 #000,
-        -1.4px 0 0 #000,
-        -0.99px -0.99px 0 #000,
-        0 -1.4px 0 #000,
-        0.99px -0.99px 0 #000;
+    text-shadow: var(--ts-14);
 }
 
 .run-summary-stat__value {
@@ -370,15 +392,7 @@ body {
     font-size: 0.76rem;
     text-align: center;
     line-height: 1.04;
-    text-shadow:
-        2px 0 0 #000,
-        1.414px 1.414px 0 #000,
-        0 2px 0 #000,
-        -1.414px 1.414px 0 #000,
-        -2px 0 0 #000,
-        -1.414px -1.414px 0 #000,
-        0 -2px 0 #000,
-        1.414px -1.414px 0 #000;
+    text-shadow: var(--ts-2);
 }
 
 .run-badges {
@@ -406,15 +420,7 @@ body {
     font-size: 0.9rem;
     text-transform: none;
     letter-spacing: 0.01em;
-    text-shadow:
-        1.5px 0 0 #000,
-        1.06px 1.06px 0 #000,
-        0 1.5px 0 #000,
-        -1.06px 1.06px 0 #000,
-        -1.5px 0 0 #000,
-        -1.06px -1.06px 0 #000,
-        0 -1.5px 0 #000,
-        1.06px -1.06px 0 #000;
+    text-shadow: var(--ts-15);
 }
 
 .run-primary-title__badge {
@@ -439,15 +445,7 @@ body {
     font-size: 0.78rem;
     color: #fff4d4;
     text-align: center;
-    text-shadow:
-        1.7px 0 0 #000,
-        1.2px 1.2px 0 #000,
-        0 1.7px 0 #000,
-        -1.2px 1.2px 0 #000,
-        -1.7px 0 0 #000,
-        -1.2px -1.2px 0 #000,
-        0 -1.7px 0 #000,
-        1.2px -1.2px 0 #000;
+    text-shadow: var(--ts-17);
 }
 
 .run-badges__empty {
@@ -493,13 +491,15 @@ body {
     width: min(60%, 286px);
 }
 
-.run-badge:hover,
-.run-badge:focus-within {
-    transform: translateY(-1px);
-    filter:
-        drop-shadow(0 0 4px rgba(var(--rarity-edge-rgb), calc(0.86 * var(--badge-glow-opacity))))
-        drop-shadow(0 0 10px rgba(var(--rarity-glow-rgb), calc(0.54 * var(--badge-glow-opacity))))
-        drop-shadow(0 0 16px rgba(var(--rarity-glow-rgb), calc(0.32 * var(--badge-glow-opacity))));
+@media (hover: hover) {
+    .run-badge:hover,
+    .run-badge:focus-within {
+        transform: translateY(-1px);
+        filter:
+            drop-shadow(0 0 4px rgba(var(--rarity-edge-rgb), calc(0.86 * var(--badge-glow-opacity))))
+            drop-shadow(0 0 10px rgba(var(--rarity-glow-rgb), calc(0.54 * var(--badge-glow-opacity))))
+            drop-shadow(0 0 16px rgba(var(--rarity-glow-rgb), calc(0.32 * var(--badge-glow-opacity))));
+    }
 }
 
 .run-badge--common {
@@ -534,15 +534,7 @@ body {
     color: #fff5d8;
     font-size: 0.72rem;
     line-height: 1.04;
-    text-shadow:
-        1.5px 0 0 #000,
-        1.06px 1.06px 0 #000,
-        0 1.5px 0 #000,
-        -1.06px 1.06px 0 #000,
-        -1.5px 0 0 #000,
-        -1.06px -1.06px 0 #000,
-        0 -1.5px 0 #000,
-        1.06px -1.06px 0 #000;
+    text-shadow: var(--ts-15);
 }
 
 .run-badge__rarity {
@@ -553,15 +545,7 @@ body {
     letter-spacing: 0.03em;
     text-transform: uppercase;
     color: #fff8e5;
-    text-shadow:
-        1.2px 0 0 #000,
-        0.85px 0.85px 0 #000,
-        0 1.2px 0 #000,
-        -0.85px 0.85px 0 #000,
-        -1.2px 0 0 #000,
-        -0.85px -0.85px 0 #000,
-        0 -1.2px 0 #000,
-        0.85px -0.85px 0 #000;
+    text-shadow: var(--ts-12);
     background: rgba(12, 6, 4, 0.26);
     box-shadow: inset 0 0 6px rgba(var(--rarity-glow-rgb), 0.16);
 }
@@ -571,15 +555,7 @@ body {
     font-size: 0.56rem;
     text-transform: uppercase;
     letter-spacing: 0.03em;
-    text-shadow:
-        1.2px 0 0 #000,
-        0.85px 0.85px 0 #000,
-        0 1.2px 0 #000,
-        -0.85px 0.85px 0 #000,
-        -1.2px 0 0 #000,
-        -0.85px -0.85px 0 #000,
-        0 -1.2px 0 #000,
-        0.85px -0.85px 0 #000;
+    text-shadow: var(--ts-12);
 }
 
 .run-badge__detail {
@@ -587,15 +563,7 @@ body {
     font-size: 0.6rem;
     text-transform: none;
     letter-spacing: 0.01em;
-    text-shadow:
-        1.3px 0 0 #000,
-        0.92px 0.92px 0 #000,
-        0 1.3px 0 #000,
-        -0.92px 0.92px 0 #000,
-        -1.3px 0 0 #000,
-        -0.92px -0.92px 0 #000,
-        0 -1.3px 0 #000,
-        0.92px -0.92px 0 #000;
+    text-shadow: var(--ts-13);
 }
 
 .run-badge__tooltip {
@@ -612,15 +580,7 @@ body {
     font-size: 0.64rem;
     line-height: 1.2;
     text-align: center;
-    text-shadow:
-        1.4px 0 0 #000,
-        0.99px 0.99px 0 #000,
-        0 1.4px 0 #000,
-        -0.99px 0.99px 0 #000,
-        -1.4px 0 0 #000,
-        -0.99px -0.99px 0 #000,
-        0 -1.4px 0 #000,
-        0.99px -0.99px 0 #000;
+    text-shadow: var(--ts-14);
     opacity: 0;
     visibility: hidden;
     pointer-events: none;
@@ -642,12 +602,14 @@ body {
     color: #ffd89f;
 }
 
-.run-badge:hover .run-badge__tooltip,
-.run-badge:focus-within .run-badge__tooltip {
-    opacity: 1;
-    visibility: visible;
-    transform: translate(-50%, 0) scale(1);
-    transition-delay: 0s;
+@media (hover: hover) {
+    .run-badge:hover .run-badge__tooltip,
+    .run-badge:focus-within .run-badge__tooltip {
+        opacity: 1;
+        visibility: visible;
+        transform: translate(-50%, 0) scale(1);
+        transition-delay: 0s;
+    }
 }
 
 .run-complete-actions {
@@ -700,7 +662,7 @@ body {
 .run-deck-modal__panel {
     position: relative;
     width: min(94vw, 560px);
-    max-height: min(88vh, 760px);
+    max-height: min(88dvh, 760px);
     border: 1px solid rgba(255, 224, 164, 0.38);
     border-radius: 12px;
     overflow: hidden;
@@ -744,15 +706,7 @@ body {
     margin: 0;
     font-size: clamp(0.92rem, 2.8vw, 1.18rem);
     color: #ffffff;
-    text-shadow:
-        1.8px 0 0 #000,
-        1.27px 1.27px 0 #000,
-        0 1.8px 0 #000,
-        -1.27px 1.27px 0 #000,
-        -1.8px 0 0 #000,
-        -1.27px -1.27px 0 #000,
-        0 -1.8px 0 #000,
-        1.27px -1.27px 0 #000;
+    text-shadow: var(--ts-18);
 }
 
 .run-deck-modal__copy,
@@ -769,15 +723,7 @@ body {
     padding: 0.24rem 0.62rem;
     font-family: "Belwe", Georgia, serif;
     font-size: 0.76rem;
-    text-shadow:
-        1.4px 0 0 #000,
-        0.99px 0.99px 0 #000,
-        0 1.4px 0 #000,
-        -0.99px 0.99px 0 #000,
-        -1.4px 0 0 #000,
-        -0.99px -0.99px 0 #000,
-        0 -1.4px 0 #000,
-        0.99px -0.99px 0 #000;
+    text-shadow: var(--ts-14);
     cursor: pointer;
 }
 
@@ -787,9 +733,11 @@ body {
     text-align: center;
 }
 
-.run-deck-modal__copy:hover:not(:disabled),
-.run-deck-modal__close:hover {
-    filter: brightness(1.08);
+@media (hover: hover) {
+    .run-deck-modal__copy:hover:not(:disabled),
+    .run-deck-modal__close:hover {
+        filter: brightness(1.08);
+    }
 }
 
 .run-deck-modal__copy:disabled {
@@ -851,9 +799,11 @@ body {
     border-radius: 6px;
 }
 
-.run-deck-card__thumb:hover {
-    transform: translateY(-1px) scale(1.02);
-    filter: brightness(1.03);
+@media (hover: hover) {
+    .run-deck-card__thumb:hover {
+        transform: translateY(-1px) scale(1.02);
+        filter: brightness(1.03);
+    }
 }
 
 .run-deck-card__image {
@@ -880,15 +830,7 @@ body {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    text-shadow:
-        1.6px 0 0 #000,
-        1.13px 1.13px 0 #000,
-        0 1.6px 0 #000,
-        -1.13px 1.13px 0 #000,
-        -1.6px 0 0 #000,
-        -1.13px -1.13px 0 #000,
-        0 -1.6px 0 #000,
-        1.13px -1.13px 0 #000;
+    text-shadow: var(--ts-16);
 }
 
 .run-deck-card__meta {
@@ -899,15 +841,7 @@ body {
     -webkit-text-fill-color: #ffe5af;
     text-transform: none;
     letter-spacing: 0.01em;
-    text-shadow:
-        1.2px 0 0 #000,
-        0.85px 0.85px 0 #000,
-        0 1.2px 0 #000,
-        -0.85px 0.85px 0 #000,
-        -1.2px 0 0 #000,
-        -0.85px -0.85px 0 #000,
-        0 -1.2px 0 #000,
-        0.85px -0.85px 0 #000;
+    text-shadow: var(--ts-12);
 }
 
 .run-deck-card__vote {
@@ -1010,15 +944,7 @@ body {
     line-height: 1.06;
     font-size: clamp(1.35rem, 2.7vw, 1.95rem);
     text-wrap: balance;
-    text-shadow:
-        1.5px 0 0 #000,
-        1.06px 1.06px 0 #000,
-        0 1.5px 0 #000,
-        -1.06px 1.06px 0 #000,
-        -1.5px 0 0 #000,
-        -1.06px -1.06px 0 #000,
-        0 -1.5px 0 #000,
-        1.06px -1.06px 0 #000;
+    text-shadow: var(--ts-15);
 }
 
 .shell-intro .panel h1 {
@@ -1033,15 +959,7 @@ body {
     margin: 0 0 0.9rem;
     color: #fff7f2;
     font-size: 0.96rem;
-    text-shadow:
-        2px 0 0 #000,
-        1.414px 1.414px 0 #000,
-        0 2px 0 #000,
-        -1.414px 1.414px 0 #000,
-        -2px 0 0 #000,
-        -1.414px -1.414px 0 #000,
-        0 -2px 0 #000,
-        1.414px -1.414px 0 #000;
+    text-shadow: var(--ts-2);
 }
 
 .shell-intro .panel > p {
@@ -1067,15 +985,7 @@ body {
     color: #fff4e2;
     font-size: 0.82rem;
     line-height: 1.18;
-    text-shadow:
-        2px 0 0 #000,
-        1.414px 1.414px 0 #000,
-        0 2px 0 #000,
-        -1.414px 1.414px 0 #000,
-        -2px 0 0 #000,
-        -1.414px -1.414px 0 #000,
-        0 -2px 0 #000,
-        1.414px -1.414px 0 #000;
+    text-shadow: var(--ts-2);
 }
 
 .intro-rules li {
@@ -1329,8 +1239,10 @@ body {
     cursor: pointer;
 }
 
-.mode-picker__mini-btn:hover {
-    filter: brightness(1.08);
+@media (hover: hover) {
+    .mode-picker__mini-btn:hover {
+        filter: brightness(1.08);
+    }
 }
 
 .mode-picker__mini-btn:focus-visible {
@@ -1433,8 +1345,10 @@ body {
     cursor: pointer;
 }
 
-.mode-picker__toggle:hover {
-    filter: brightness(1.08);
+@media (hover: hover) {
+    .mode-picker__toggle:hover {
+        filter: brightness(1.08);
+    }
 }
 
 .mode-picker__toggle.is-active {
@@ -1482,26 +1396,20 @@ body {
     background-size: 100% 100%;
     background-position: center;
     background-color: transparent;
-    text-shadow:
-        2px 0 0 #000,
-        1.414px 1.414px 0 #000,
-        0 2px 0 #000,
-        -1.414px 1.414px 0 #000,
-        -2px 0 0 #000,
-        -1.414px -1.414px 0 #000,
-        0 -2px 0 #000,
-        1.414px -1.414px 0 #000;
+    text-shadow: var(--ts-2);
     box-shadow: none;
     cursor: pointer;
     transition: filter 130ms ease, transform 130ms ease;
 }
 
-.btn:hover {
-    filter:
-        brightness(1.08)
-        drop-shadow(0 0 3px rgba(48, 190, 255, 0.95))
-        drop-shadow(0 0 8px rgba(48, 190, 255, 0.8))
-        drop-shadow(0 0 14px rgba(48, 190, 255, 0.55));
+@media (hover: hover) {
+    .btn:hover {
+        filter:
+            brightness(1.08)
+            drop-shadow(0 0 3px rgba(48, 190, 255, 0.95))
+            drop-shadow(0 0 8px rgba(48, 190, 255, 0.8))
+            drop-shadow(0 0 14px rgba(48, 190, 255, 0.55));
+    }
 }
 
 .btn:active {
@@ -1526,7 +1434,7 @@ body {
     --card-width: clamp(172px, min(calc(var(--shell-max-width) * 0.5), 20dvh), 286px);
     --card-height: calc(var(--card-width) * 1.461);
     --stack-width: clamp(240px, calc(var(--card-width) + 84px), 372px);
-    --stack-height: calc(var(--card-height) + 18px);
+    --stack-height: calc(var(--card-height) * 0.88);
     --stack-offset-top: clamp(4px, 0.8vh, 12px);
     width: 100%;
     position: relative;
@@ -1562,22 +1470,14 @@ body {
     line-height: 1.08;
     color: #ffffff;
     margin-bottom: clamp(0.08rem, 0.45vw, 0.18rem);
-    text-shadow:
-        2px 0 0 #000,
-        1.414px 1.414px 0 #000,
-        0 2px 0 #000,
-        -1.414px 1.414px 0 #000,
-        -2px 0 0 #000,
-        -1.414px -1.414px 0 #000,
-        0 -2px 0 #000,
-        1.414px -1.414px 0 #000;
+    text-shadow: var(--ts-2);
 }
 
 .swipe-stack {
     width: min(100%, var(--stack-width));
     height: var(--stack-height);
     position: relative;
-    top: var(--stack-offset-top);
+    top: 0;
     display: grid;
     align-content: end;
     justify-items: center;
@@ -1750,13 +1650,22 @@ body {
     --rarity-edge-rgb: var(--rarity-legendary-edge-rgb);
 }
 
-.card-art-slot:hover .card-image.is-ready,
 .swipe-card.is-highlighted .card-art-slot .card-image.is-ready {
     transform: scale(1.012);
     filter:
         drop-shadow(0 0 4px rgba(var(--rarity-edge-rgb), calc(0.86 * var(--swipe-card-opacity, 1))))
         drop-shadow(0 0 10px rgba(var(--rarity-glow-rgb), calc(0.54 * var(--swipe-card-opacity, 1))))
         drop-shadow(0 0 16px rgba(var(--rarity-glow-rgb), calc(0.32 * var(--swipe-card-opacity, 1))));
+}
+
+@media (hover: hover) {
+    .card-art-slot:hover .card-image.is-ready {
+        transform: scale(1.012);
+        filter:
+            drop-shadow(0 0 4px rgba(var(--rarity-edge-rgb), calc(0.86 * var(--swipe-card-opacity, 1))))
+            drop-shadow(0 0 10px rgba(var(--rarity-glow-rgb), calc(0.54 * var(--swipe-card-opacity, 1))))
+            drop-shadow(0 0 16px rgba(var(--rarity-glow-rgb), calc(0.32 * var(--swipe-card-opacity, 1))));
+    }
 }
 
 .card-art-slot.is-loading::before {
@@ -1798,15 +1707,7 @@ body {
     font-size: 1.02rem;
     letter-spacing: 0.005em;
     text-transform: none;
-    text-shadow:
-        2px 0 0 #000,
-        1.414px 1.414px 0 #000,
-        0 2px 0 #000,
-        -1.414px 1.414px 0 #000,
-        -2px 0 0 #000,
-        -1.414px -1.414px 0 #000,
-        0 -2px 0 #000,
-        1.414px -1.414px 0 #000;
+    text-shadow: var(--ts-2);
 }
 
 .card-flavor-box {
@@ -1838,15 +1739,7 @@ body {
     box-sizing: border-box;
     padding: 0 0.14rem;
     text-align: center;
-    text-shadow:
-        2px 0 0 #000,
-        1.414px 1.414px 0 #000,
-        0 2px 0 #000,
-        -1.414px 1.414px 0 #000,
-        -2px 0 0 #000,
-        -1.414px -1.414px 0 #000,
-        0 -2px 0 #000,
-        1.414px -1.414px 0 #000;
+    text-shadow: var(--ts-2);
 }
 
 .panel .card-meta .card-flavor em {
@@ -1920,12 +1813,14 @@ body {
     filter: grayscale(0.56) brightness(0.7);
 }
 
-.action-btn:hover img {
-    filter:
-        brightness(1.08)
-        drop-shadow(0 0 3px rgba(48, 190, 255, 0.95))
-        drop-shadow(0 0 8px rgba(48, 190, 255, 0.8))
-        drop-shadow(0 0 14px rgba(48, 190, 255, 0.55));
+@media (hover: hover) {
+    .action-btn:hover img {
+        filter:
+            brightness(1.08)
+            drop-shadow(0 0 3px rgba(48, 190, 255, 0.95))
+            drop-shadow(0 0 8px rgba(48, 190, 255, 0.8))
+            drop-shadow(0 0 14px rgba(48, 190, 255, 0.55));
+    }
 }
 
 .info-action {
@@ -1953,12 +1848,14 @@ body {
     will-change: transform, opacity;
 }
 
-.info-action:hover .info-bubble,
-.info-action:focus-within .info-bubble {
-    opacity: 1;
-    visibility: visible;
-    animation: info-bubble-pop 250ms cubic-bezier(0.17, 0.89, 0.32, 1.28) forwards;
-    transition-delay: 0s;
+@media (hover: hover) {
+    .info-action:hover .info-bubble,
+    .info-action:focus-within .info-bubble {
+        opacity: 1;
+        visibility: visible;
+        animation: info-bubble-pop 250ms cubic-bezier(0.17, 0.89, 0.32, 1.28) forwards;
+        transition-delay: 0s;
+    }
 }
 
 .info-bubble__bg {
@@ -2197,10 +2094,12 @@ body {
         animation: none;
     }
 
-    .info-action:hover .info-bubble,
-    .info-action:focus-within .info-bubble {
-        animation: none;
-        transform: translate(0, 0) scale(1);
+    @media (hover: hover) {
+        .info-action:hover .info-bubble,
+        .info-action:focus-within .info-bubble {
+            animation: none;
+            transform: translate(0, 0) scale(1);
+        }
     }
 
     .reverse-edge-cue,
@@ -2247,7 +2146,7 @@ body {
 
     .app {
         min-height: 100dvh;
-        padding: 0.7rem 0.72rem 1.02rem;
+        padding: 0.7rem 0.72rem max(1.02rem, env(safe-area-inset-bottom));
     }
 
     .hero {
@@ -2414,7 +2313,7 @@ body {
         --card-width: clamp(204px, 56vw, 228px);
         --card-height: calc(var(--card-width) * 1.455);
         --stack-width: clamp(286px, 82vw, 318px);
-        --stack-height: calc(var(--card-height) + 14px);
+        --stack-height: calc(var(--card-height) * 0.88);
         --stack-offset-top: clamp(4px, 1vw, 10px);
     }
 
@@ -2642,7 +2541,7 @@ body {
         --card-width: clamp(110px, min(32vw, 34dvh), 172px);
         --card-height: calc(var(--card-width) * 1.455);
         --stack-width: calc(var(--card-width) + 56px);
-        --stack-height: calc(var(--card-height) + 8px);
+        --stack-height: calc(var(--card-height) * 0.88);
     }
 
     .card-content .run-count {
@@ -2829,7 +2728,7 @@ body {
         --card-width: clamp(184px, 57vw, 204px);
         --card-height: calc(var(--card-width) * 1.455);
         --stack-width: clamp(252px, 86vw, 286px);
-        --stack-height: calc(var(--card-height) + 12px);
+        --stack-height: calc(var(--card-height) * 0.88);
         --stack-offset-top: clamp(58px, 13vw, 78px);
     }
 
@@ -3048,7 +2947,7 @@ body {
 /* Landscape phones (short screens) */
 @media (max-height: 480px) {
     .app {
-        padding: 0.3rem 1.5rem 0.3rem;
+        padding: 0.3rem max(1.5rem, env(safe-area-inset-right)) 0.3rem max(1.5rem, env(safe-area-inset-left));
     }
 
     .hero {
@@ -3101,7 +3000,7 @@ body {
         --card-width: clamp(110px, 30dvh, 148px);
         --card-height: calc(var(--card-width) * 1.455);
         --stack-width: calc(var(--card-width) + 56px);
-        --stack-height: calc(var(--card-height) + 8px);
+        --stack-height: calc(var(--card-height) * 0.88);
         --edge-frame-gap: 0.36rem;
     }
 
